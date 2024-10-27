@@ -16,11 +16,11 @@ localparam time_7secs = 32'd7, //for filling of water
 
 
 reg [2:0] current_state,next_state; // for the current and next states
-reg[31:0] counter,counter_comb; // counter for the time
+    reg[31:0] counter,counter_comb; // counter for the time spent in each state
 reg[1:0] number_of_washes; // number of washes done
-reg timeout;
+reg timeout; // signals when a specific time for a state is up.
 
-
+// when in IDLE el number of washes resets o zero w in the wash state,  after the wash cycle completes (timeout), the number of washes increments.
 always@(posedge clk)begin
     if(current_state == IDLE)
     begin
@@ -31,6 +31,7 @@ always@(posedge clk)begin
         number_of_washes <= number_of_washes + 'd1; // increment number of washes when we are in the WASH state and the timeout is 1
     end
 end
+    
 always@(posedge clk or posedge rst)begin
     if(rst)
     begin
