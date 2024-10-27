@@ -1,7 +1,4 @@
-module Washing_machine(
-    input clk,rst,start,double_wash,dry_wash,stop,time_pause;
-    output reg done;
-);
+module Washing_Machine(input clk,rst,start,double_wash,dry_wash,stop,time_pause,output reg done);
 
 localparam IDLE = 3'b000, // IDLE state
            FILL_WATER = 3'b001, // filling water and detergent state
@@ -139,11 +136,6 @@ always@(*)begin
                 next_state = current_state;
               end
           end
-        // A default case for any unexpected behavior and to also avoid any unintentional latches
-        default:
-          begin
-            next_state = IDLE;
-          end
         DRY:
           begin
             // When the drying phase is over (and accordingly the whole operation), return to IDLE state
@@ -165,4 +157,4 @@ always@(*)begin
       endcase
 
 end
-
+endmodule
