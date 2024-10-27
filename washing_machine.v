@@ -31,7 +31,8 @@ always@(posedge clk)begin
         number_of_washes <= number_of_washes + 'd1; // increment number of washes when we are in the WASH state and the timeout is 1
     end
 end
-    
+
+    // When the reset is high the washing machine enters the idle state 
 always@(posedge clk or posedge rst)begin
     if(rst)
     begin
