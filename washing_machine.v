@@ -57,13 +57,9 @@ always@(*)begin
     case(current_state)
     IDLE:
     begin
-
         if(start)begin
             next_state <= FILL_WATER;
         end
-        /*else if(stop)begin
-            next_state <= current_state;
-        end */
     end
     FILL_WATER:
           begin
@@ -81,7 +77,7 @@ always@(*)begin
           end
         WASH:
           begin
-            // Go to the next phase (RINSE) when the WASH's duration (5 minutes) is over
+            // Go to the next phase (RINSE) when the WASH's duration (5 seconds) is over
             if(timeout)
               begin
                 next_state = RINSE;
@@ -125,12 +121,12 @@ always@(*)begin
           end
         SPIN:
           begin
-            // When the drying phase is over (and accordingly the whole operation), return to IDLE state
+            // When the spinning phase is over (and accordingly the whole operation), return to IDLE state
             if(timeout)
               begin
                 next_state = DRY;
               end
-            // Otherwise, continue drying
+            // Otherwise, continue spinning
             else
               begin
                 next_state = current_state;
