@@ -5,18 +5,20 @@ localparam IDLE = 3'b000, // IDLE state
            WASH = 3'b010, // washing state
            RINSE = 3'b011, // rinsing state
            SPIN = 3'b100, // spinning state
-           DRY = 3'b101; // drying state
-           STEAM_CLEAN = 3'b110; // washing clothes using steam state
+           DRY = 3'b101, // drying state
+           STEAM_CLEAN = 3'b110, // washing clothes using steam state
+           PAUSE = 3'b111; // time pausing during states 
 
 localparam time_7secs = 32'd7, //for filling of water,dry washing
            time_5secs = 32'd5, // for WASH,RINSE,SPIN
-           time_10secs = 32'd10; // for drying
+           time_10secs = 32'd10, // for drying,steam_cleaning
+           time_20secs = 32'd20; // for time pausing
 
 
-reg[2:0] current_state,next_state; // for the current and next states
-reg[31:0] counter,counter_comb; // counter for the time spent in each state
+reg[2:0] current_state,next_state,prev_state; // for the current,previous and next states
+reg[31:0] counter,counter_comb,counter_backup; // counter for the time spent in each state
 reg[1:0] number_of_washes; // number of washes done
-reg timeout; // signal when a specific time for a state is up.
+reg timeout; // signal when a specific time for a state is up and time pause signal.
 
 // when in IDLE el number of washes resets o zero w in the wash state,  after the wash cycle completes (timeout), the number of washes increments.
 always@(posedge clk)
@@ -56,6 +58,17 @@ begin
     end
 end
 
+always @(posedge clk or posedge rst) 
+begin
+    if (rst) begin
+        counter_backup <= 0; // Reset backup on reset
+        prev_state <= IDLE;
+    end else if (time_pause && current_state != PAUSE) begin
+        prev_state <= current_state;
+        counter_backup <= counter; // Save counter value when entering PAUSE
+    end
+end
+
 always@(*)begin
     next_state <= IDLE;
     case(current_state)
@@ -70,8 +83,12 @@ always@(*)begin
     end
     FILL_WATER:
     begin
-            // Go to the next state (WASH) when the filling water's duration (7 seconds) is over
-      if(timeout)
+      if(time_pause) // go to the state PAUSE for the time pause
+        begin 
+          prev_state = current_state;
+          next_state = PAUSE;
+        end      // Go to the next state (WASH) when the filling water's duration (7 seconds) is over
+      else if(timeout)
         begin
           next_state = WASH;
         end
@@ -84,7 +101,11 @@ always@(*)begin
     end
     WASH:
     begin
-            // Go to the next phase (RINSE) when the WASH's duration (5 seconds) is over
+      if(time_pause) // go to the state PAUSE for the time pause
+        begin 
+          prev_state = current_state;
+          next_state = PAUSE;
+        end      // Go to the next phase (RINSE) when the WASH's duration (5 seconds) is over
       if(timeout)
         begin
           next_state = RINSE;
@@ -97,6 +118,11 @@ always@(*)begin
     end
     RINSE:
     begin
+      if(time_pause) // go to the state PAUSE for the time pause
+        begin 
+          prev_state = current_state;
+          next_state = PAUSE;
+        end
       if(timeout)
         begin
                 // when the RINSE's duration is over, check if the user is requesting a second wash
@@ -128,6 +154,11 @@ always@(*)begin
     end
     SPIN:
     begin
+      if(time_pause) // go to the state PAUSE for the time pause
+        begin 
+          prev_state = current_state;
+          next_state = PAUSE;
+        end
             // When the spinning phase is, go to DRY state
       if(timeout)
         begin
@@ -141,6 +172,11 @@ always@(*)begin
     end
     DRY:
     begin
+      if(time_pause) // go to the state PAUSE for the time pause
+        begin 
+          prev_state = current_state;
+          next_state = PAUSE;
+        end
         // When the drying phase is over (and accordingly the whole operation), return to IDLE state
       if(timeout)
         begin
@@ -155,10 +191,14 @@ always@(*)begin
         end
     end
     STEAM_CLEAN:
-    begin 
+    begin
+      if(time_pause) // go to the state PAUSE for the time pause
+        begin 
+          prev_state = current_state;
+          next_state = PAUSE;
+        end 
       if(timeout)
         begin
-          dry_wash <= 'd0;
           done = 'b1;  
           next_state = IDLE;
         end
@@ -167,17 +207,29 @@ always@(*)begin
           done = 'b0;  
           next_state = current_state;
         end
+    end
+    PAUSE:
+        begin 
+      if(timeout)
+        begin  
+          next_state = prev_state;
+        end
+      else 
+        begin  
+          next_state = current_state;
+        end
     end 
         // A default case for any unexpected behavior and to also avoid any unintentional latches
     default:
     begin
-      next_state = IDLE;
+      next_state <= IDLE;
     end   
     endcase
 
 end
+
 always@(*)begin 
-  counter_comb = 'b0;
+  counter_comb = counter;
   timeout = 'b0;
   case(current_state)begin  
     IDLE:
@@ -186,8 +238,12 @@ always@(*)begin
       timeout = 'b0;
     end
     FILL_WATER,STEAM_CLEAN:
-    begin 
-      if(counter == time_7secs) 
+    begin
+      if (time_pause) 
+      begin
+        counter_comb = counter; // Hold the counter during pause 
+      end 
+      else if(counter == time_7secs) 
       begin 
         counter_comb = 'd0;
         timeout = 'd1;
@@ -199,8 +255,12 @@ always@(*)begin
       end
     end
     WASH,RINSE,SPIN:
-    begin 
-      if(counter == time_5secs)
+    begin
+      if (time_pause) 
+      begin
+        counter_comb = counter; // Hold the counter during pause 
+      end 
+      else if(counter == time_5secs)
       begin  
         counter_comb = 'd0;
         timeout = 'd1;
@@ -212,10 +272,27 @@ always@(*)begin
       end
     end
     DRY:
-    begin 
-      if(counter == time_10secs)
+    begin
+      if (time_pause) 
+      begin
+        counter_comb = counter; // Hold the counter during pause 
+      end 
+      else if(counter == time_10secs)
       begin  
         counter_comb = 'd0;
+        timeout = 'd1;
+      end
+      else 
+      begin  
+        counter_comb = counter + 'd1;
+        timeout = 'd0;
+      end
+    end
+    PAUSE:
+    begin 
+      if(counter == time_20secs)
+      begin
+        counter_comb = counter_backup;  
         timeout = 'd1;
       end
       else 
