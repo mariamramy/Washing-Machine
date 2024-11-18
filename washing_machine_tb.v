@@ -64,7 +64,7 @@ module Washing_Machine_tb();
           test_case_3();
       
           // Test case 4: Check that the washing phase takes 5 minutes.
-     	  test_case_4();
+     	    test_case_4();
       
           // Test case 5: Check that the rinsing phase takes 5 minutes.
           test_case_5();
@@ -93,6 +93,8 @@ module Washing_Machine_tb();
           // Test case 11: Check the workability of the dry wash option and that it transitions to the STEAM_CLEAN
           //phase once dry_wash is set to high.
           test_case_11();
+
+          test_case_12();
           
       $finish;
     end
@@ -330,6 +332,34 @@ module Washing_Machine_tb();
         $display("Test case 11 failed");
     end
   endtask
+
+  task test_case_12;
+  begin
+    $display("Test case 12 running");
+    reset();
+    start_tb = 1'b1;
+    #(period);
+    delay(numberOfCounts_1minute / 2.0); // Let the counter reach halfway
+    $display("Counter before pause: %d", DUT.counter);
+    $display("Current State: %d", DUT.current_state);
+    $display("Timeout flag: %d", DUT.timeout);
+    time_pause_tb = 1'b1;
+    #(period * 3);                // Pause for a while
+    $display("Counter after pause: %d", DUT.counter);
+    $display("Current State: %d", DUT.current_state);
+    $display("Timeout flag: %d", DUT.timeout);
+    time_pause_tb = 1'b0;      
+    delay(numberOfCounts_1minute / 2.0); // Resume and complete counting;
+    $display("Counter after resume: %d", DUT.counter);
+    $display("Current State: %d", DUT.current_state);
+    $display("Timeout flag: %d", DUT.timeout); 
+    if (DUT.current_state == WASH) begin
+      $display("Test case 12 passed");
+    end else begin
+      $display("Test case 12 failed");
+    end
+  end
+endtask
 
 
   task delay(input [31:0]  numberOfCounts);
