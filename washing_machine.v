@@ -9,10 +9,10 @@ localparam IDLE = 3'b000, // IDLE state
            STEAM_CLEAN = 3'b110, // washing clothes using steam state
            PAUSE = 3'b111; // time pausing during states 
 
-localparam time_7secs = 32'd7, //for filling of water,dry washing
-           time_5secs = 32'd5, // for WASH,RINSE,SPIN
-           time_10secs = 32'd10, // for drying,steam_cleaning
-           time_20secs = 32'd20; // for time pausing
+localparam time_7cycles = 7, //for filling of water,dry washing
+           time_5cycles = 5, // for WASH,RINSE,SPIN
+           time_10cycles = 10, // for drying,steam_cleaning
+           time_20cycles = 20; // for time pausing
 
 
 reg[2:0] current_state,next_state,prev_state; // for the current,previous and next states
@@ -58,27 +58,32 @@ begin
     end
 end
 
+
 always @(posedge clk or posedge rst) 
 begin
     if (rst) begin
         counter_backup <= 0; // Reset backup on reset
         prev_state <= IDLE;
+
     end else if (time_pause && current_state != PAUSE) begin
         prev_state <= current_state;
         counter_backup <= counter; // Save counter value when entering PAUSE
     end
+    else (!time_pause && current_state == PAUSE) begin
+    counter_backup <= 0; // Clear counter backup
+end
 end
 
 always@(*)begin
-    next_state <= IDLE;
+    next_state = IDLE;
     case(current_state)
     IDLE:
     begin
       if(start)begin
-          next_state <= FILL_WATER;
+          next_state = FILL_WATER;
       end
-      if(dry_wash)begin 
-        next_state <= STEAM_CLEAN;
+      if(dry_wash && start)begin 
+        next_state = STEAM_CLEAN;
       end
     end
     FILL_WATER:
@@ -159,7 +164,7 @@ always@(*)begin
           prev_state = current_state;
           next_state = PAUSE;
         end
-            // When the spinning phase is, go to DRY state
+            // When the spinning phase is, go to drying state
       if(timeout)
         begin
           next_state = DRY;
@@ -180,13 +185,11 @@ always@(*)begin
         // When the drying phase is over (and accordingly the whole operation), return to IDLE state
       if(timeout)
         begin
-          done = 'b1;
           next_state = IDLE;
         end
         // Otherwise, continue drying
       else
         begin
-          done = 'b0;
           next_state = current_state;
         end
     end
@@ -198,19 +201,17 @@ always@(*)begin
           next_state = PAUSE;
         end 
       if(timeout)
-        begin
-          done = 'b1;  
+        begin  
           next_state = IDLE;
         end
       else 
-        begin
-          done = 'b0;  
+        begin  
           next_state = current_state;
         end
     end
     PAUSE:
-        begin 
-      if(timeout)
+    begin 
+      if(timeout) //Time to return to the previous state
         begin  
           next_state = prev_state;
         end
@@ -222,22 +223,37 @@ always@(*)begin
         // A default case for any unexpected behavior and to also avoid any unintentional latches
     default:
     begin
-      next_state <= IDLE;
+      next_state = IDLE;
     end   
     endcase
 
 end
 
+always@(*)
+  begin
+    // As long as the machine is not being used, the output done is set indicating the availability of
+    // the machine. When a user starts the machine, the output done is deasserted indicating that an 
+    // operation is currently running.
+    if(current_state == IDLE)
+      begin
+        done = 'd1;
+      end
+    else
+      begin
+        done = 'd0;
+      end
+  end
+
 always@(*)begin 
-  counter_comb = counter;
+  counter_comb = 'b0;
   timeout = 'b0;
-  case(current_state)begin  
+  case(current_state) 
     IDLE:
     begin 
       counter_comb = 'b0;
       timeout = 'b0;
     end
-    FILL_WATER,STEAM_CLEAN:
+    FILL_WATER, STEAM_CLEAN:
     begin
       if (time_pause) 
       begin
@@ -301,7 +317,6 @@ always@(*)begin
         timeout = 'd0;
       end
     end
-  end
   default:
   begin 
     counter_comb = 'd0;
