@@ -64,7 +64,7 @@ module Washing_Machine_tb();
           test_case_3();
       
           // Test case 4: Check that the washing phase takes 5 minutes.
-     	    test_case_4();
+     	  test_case_4();
       
           // Test case 5: Check that the rinsing phase takes 5 minutes.
           test_case_5();
