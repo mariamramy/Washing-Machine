@@ -8,9 +8,9 @@ module Washing_Machine(
   input wire start,
   input wire double_wash,
   input wire dry_wash,
-  input wire time_pause,
+  input wire time_pause,  // time_pause input added
   output reg done);
-  
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////// Parameters /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -30,19 +30,20 @@ module Washing_Machine(
              numberOfCounts_5minutes = 32'd299, // wash and rinse
              numberofCounts_10minutes = 32'd599; //dry,steam clean
   
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////// Variables and Internal Connections ////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   reg [2:0] current_state, next_state;
-  reg [31:0] counter, counter_comb;
+  reg [31:0] counter, counter_comb, temp_counter;
   reg timeout;
   reg [1:0] number_of_washes;
   
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// Sequential Procedural Blocks //////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  
+
     // Logic to support the "double wash" option. A counter number_of_washes is used to count the number of
     // washes in order to make 2 washes whenever the user requests a double wash.
     always@(posedge clk)
@@ -59,7 +60,7 @@ module Washing_Machine(
             number_of_washes <= number_of_washes + 'd1;
           end
       end  
-    
+
   // Current state sequential logic
   always@(posedge clk or negedge rst_n)
     begin
@@ -74,7 +75,7 @@ module Washing_Machine(
           current_state <= next_state;
         end
     end
-    
+
   // 32-bit counter sequential logic
   always@(posedge clk or negedge rst_n)
     begin
@@ -89,12 +90,10 @@ module Washing_Machine(
           counter <= counter_comb;
         end
     end
-
     
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// Combinational Procedural Blocks ///////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
   
   // Next state combinational logic
   always@(*)
@@ -245,7 +244,7 @@ module Washing_Machine(
   always@(*)
     begin
       // Initial values to avoid unintentional latches
-      counter_comb = 'd0;
+      counter_comb = counter;
       timeout = 1'b0;
       case(current_state)
         IDLE:
@@ -263,7 +262,7 @@ module Washing_Machine(
                       counter_comb = 'd0;
                       timeout = 1'b1;
                     end
-                  // Otherwise, if the user has requested to pause the timer, freeze the counter until timer_pause is deasserted
+                  // Otherwise, if the user has requested to pause the timer, freeze the counter until time_pause is deasserted
                   else if(time_pause)
                     begin
                       counter_comb = counter;
@@ -285,51 +284,7 @@ module Washing_Machine(
                       counter_comb = 'd0;
                       timeout = 1'b1;
                     end
-                  // Otherwise, if the user has requested to pause the timer, freeze the counter until timer_pause is deasserted
-                  else if(time_pause)
-                    begin
-                      counter_comb = counter;
-                      timeout = 1'b0;
-                    end
-                  // Otherwise, increment the counter and keep the timeout flag deasserted
-                  else
-                    begin
-                      counter_comb = counter + 'd1;
-                      timeout = 1'b0;
-                    end
-                end 
-        RINSE:
-       // Counter should count a number of counts equivalent to 5 minutes
-                begin
-                  // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
-                  if(counter == numberOfCounts_5minutes)
-                    begin
-                      counter_comb = 'd0;
-                      timeout = 1'b1;
-                    end
-                  // Otherwise, if the user has requested to pause the timer, freeze the counter until timer_pause is deasserted
-                  else if(time_pause)
-                    begin
-                      counter_comb = counter;
-                      timeout = 1'b0;
-                    end
-                  // Otherwise, increment the counter and keep the timeout flag deasserted
-                  else
-                    begin
-                      counter_comb = counter + 'd1;
-                      timeout = 1'b0;
-                    end
-                end 
-        SPIN:
-        // Counter should count a number of counts equivalent to 2 minutes
-                begin
-                  // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
-                  if(counter == numberOfCounts_2minutes)
-                    begin
-                      counter_comb = 'd0;
-                      timeout = 1'b1;
-                    end
-                  // Otherwise, if the user has requested to pause the timer, freeze the counter until timer_pause is deasserted
+                  // Otherwise, if the user has requested to pause the timer, freeze the counter until time_pause is deasserted
                   else if(time_pause)
                     begin
                       counter_comb = counter;
@@ -342,23 +297,60 @@ module Washing_Machine(
                       timeout = 1'b0;
                     end
                 end
-
-        DRY:
-        // Counter should count a number of counts equivalent to 10 minutes
+        RINSE:
+        // Counter should count a number of counts equivalent to 5 minutes
                 begin
-                  // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
-                  if(counter == numberofCounts_10minutes)
+                  // Same logic as the washing phase
+                  if(counter == numberOfCounts_5minutes)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
                     end
-                  // Otherwise, if the user has requested to pause the timer, freeze the counter until timer_pause is deasserted
                   else if(time_pause)
                     begin
                       counter_comb = counter;
                       timeout = 1'b0;
                     end
-                  // Otherwise, increment the counter and keep the timeout flag deasserted
+                  else
+                    begin
+                      counter_comb = counter + 'd1;
+                      timeout = 1'b0;
+                    end
+                end  
+        SPIN:
+        // Counter should count a number of counts equivalent to 2 minutes
+                begin
+                  // Same logic as the previous phases but for 2 minutes
+                  if(counter == numberOfCounts_2minutes)
+                    begin
+                      counter_comb = 'd0;
+                      timeout = 1'b1;
+                    end
+                  else if(time_pause)
+                    begin
+                      counter_comb = counter;
+                      timeout = 1'b0;
+                    end
+                  else
+                    begin
+                      counter_comb = counter + 'd1;
+                      timeout = 1'b0;
+                    end
+                end
+        DRY:
+        // Counter should count a number of counts equivalent to 10 minutes
+                begin
+                  // Same logic as the previous phases but for 10 minutes
+                  if(counter == numberofCounts_10minutes)
+                    begin
+                      counter_comb = 'd0;
+                      timeout = 1'b1;
+                    end
+                  else if(time_pause)
+                    begin
+                      counter_comb = counter;
+                      timeout = 1'b0;
+                    end
                   else
                     begin
                       counter_comb = counter + 'd1;
@@ -366,33 +358,29 @@ module Washing_Machine(
                     end
                 end
         STEAM_CLEAN:
-        // Counter should count a number of counts equivalent to 10 minutes
+        // Same logic as drying phase
                 begin
-                  // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
                   if(counter == numberofCounts_10minutes)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
                     end
-                  // Otherwise, if the user has requested to pause the timer, freeze the counter until timer_pause is deasserted
                   else if(time_pause)
                     begin
                       counter_comb = counter;
                       timeout = 1'b0;
                     end
-                  // Otherwise, increment the counter and keep the timeout flag deasserted
                   else
                     begin
                       counter_comb = counter + 'd1;
                       timeout = 1'b0;
                     end
-                end                   
+                end
         default:
           begin
             counter_comb = 'd0;
             timeout = 1'b0;
-          end    
+          end
       endcase
-    end 
-      
+    end
 endmodule
