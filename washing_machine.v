@@ -383,4 +383,40 @@ module Washing_Machine(
           end
       endcase
     end
+
+
+
+    
+    
+/*
+Ensure the washing machine starts in IDLE when reset is asserted
+psl default clock = rose(clk);
+psl property Reset_To_IDLE = always (rst_n == 0 -> next(current_state == IDLE));
+psl assert Reset_To_IDLE;
+*/
+
+// Ensure 'done' is high only in the IDLE state
+// psl property Done_Only_In_IDLE = always ((current_state == IDLE) -> (done == 1));
+//psl assert Done_Only_In_IDLE;
+
+// Ensure proper transition from IDLE to FILL_WATER when 'start' is asserted
+// psl property IDLE_To_FILL_WATER = always ((current_state == IDLE && start) -> next(current_state == FILL_WATER));
+// psl assert IDLE_To_FILL_WATER;
+
+// Ensure correct double wash behavior: RINSE -> WASH if 'double_wash' is enabled and number_of_washes == 1
+// psl property Double_Wash_Transition = always ((current_state == RINSE && double_wash && number_of_washes == 1) -> next(current_state == WASH));
+// psl assert Double_Wash_Transition;
+
+// Ensure timeout flag is set at correct counter values
+//psl property Timeout_Correctness = always ((current_state == FILL_WATER && counter == numberOfCounts_10seconds) -> timeout);
+//psl assert Timeout_Correctness;
+
+// Ensure 'time_pause' freezes the counter
+// psl property Time_Pause_Functionality = always (time_pause -> (counter == $past(counter)));
+// assert Time_Pause_Functionality;
+
+// Ensure proper behavior for STEAM_CLEAN
+// property Steam_Clean_Behavior = always ((current_state == STEAM_CLEAN && timeout) -> next(current_state == IDLE));
+// assert Steam_Clean_Behavior;
+
 endmodule
