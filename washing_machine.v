@@ -15,7 +15,7 @@ module Washing_Machine(
 ///////////////////////////////////////////////// Parameters /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
   
-  // Define states using gray encoding to reduce switching power
+  // Define states
   localparam IDLE        = 3'b000,
              FILL_WATER  = 3'b001,
              WASH        = 3'b010,
@@ -25,10 +25,10 @@ module Washing_Machine(
              STEAM_CLEAN = 3'b110;
           
   // Define the number of counts required by the counter to reach specific time
-  localparam numberOfCounts_1minute  = 32'd59, //fill water
-             numberOfCounts_2minutes = 32'd119, // spin
-             numberOfCounts_5minutes = 32'd299, // wash and rinse
-             numberofCounts_10minutes = 32'd599; //dry,steam clean
+  localparam numberOfCounts_10seconds  = 6'd9, //fill water
+             numberOfCounts_20seconds = 6'd19, // spin
+             numberOfCounts_50seconds = 6'd49, // wash and rinse
+             numberofCounts_1minute = 6'd59; //dry,steam clean
   
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -36,7 +36,7 @@ module Washing_Machine(
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   reg [2:0] current_state, next_state;
-  reg [31:0] counter, counter_comb, temp_counter;
+  reg [5:0] counter, counter_comb;
   reg timeout;
   reg [1:0] number_of_washes;
   
@@ -257,7 +257,7 @@ module Washing_Machine(
         // Counter should count a number of counts equivalent to 1 minute
                 begin
                   // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
-                  if(counter == numberOfCounts_1minute)
+                  if(counter == numberOfCounts_10seconds)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
@@ -271,7 +271,7 @@ module Washing_Machine(
                   // Otherwise, increment the counter and keep the timeout flag deasserted
                   else
                     begin
-                      counter_comb = counter + 'd1;
+                      counter_comb = counter + 1'd1;
                       timeout = 1'b0;
                     end
                 end 
@@ -279,7 +279,7 @@ module Washing_Machine(
         // Counter should count a number of counts equivalent to 5 minutes
                 begin
                   // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
-                  if(counter == numberOfCounts_5minutes)
+                  if(counter == numberOfCounts_50seconds)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
@@ -293,7 +293,7 @@ module Washing_Machine(
                   // Otherwise, increment the counter and keep the timeout flag deasserted
                   else
                     begin
-                      counter_comb = counter + 'd1;
+                      counter_comb = counter + 1'd1;
                       timeout = 1'b0;
                     end
                 end
@@ -301,7 +301,7 @@ module Washing_Machine(
         // Counter should count a number of counts equivalent to 5 minutes
                 begin
                   // Same logic as the washing phase
-                  if(counter == numberOfCounts_5minutes)
+                  if(counter == numberOfCounts_50seconds)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
@@ -313,7 +313,7 @@ module Washing_Machine(
                     end
                   else
                     begin
-                      counter_comb = counter + 'd1;
+                      counter_comb = counter + 1'd1;
                       timeout = 1'b0;
                     end
                 end  
@@ -321,7 +321,7 @@ module Washing_Machine(
         // Counter should count a number of counts equivalent to 2 minutes
                 begin
                   // Same logic as the previous phases but for 2 minutes
-                  if(counter == numberOfCounts_2minutes)
+                  if(counter == numberOfCounts_20seconds)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
@@ -333,7 +333,7 @@ module Washing_Machine(
                     end
                   else
                     begin
-                      counter_comb = counter + 'd1;
+                      counter_comb = counter + 1'd1;
                       timeout = 1'b0;
                     end
                 end
@@ -341,7 +341,7 @@ module Washing_Machine(
         // Counter should count a number of counts equivalent to 10 minutes
                 begin
                   // Same logic as the previous phases but for 10 minutes
-                  if(counter == numberofCounts_10minutes)
+                  if(counter == numberofCounts_1minute)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
@@ -353,14 +353,14 @@ module Washing_Machine(
                     end
                   else
                     begin
-                      counter_comb = counter + 'd1;
+                      counter_comb = counter + 1'd1;
                       timeout = 1'b0;
                     end
                 end
         STEAM_CLEAN:
         // Same logic as drying phase
                 begin
-                  if(counter == numberofCounts_10minutes)
+                  if(counter == numberofCounts_1minute)
                     begin
                       counter_comb = 'd0;
                       timeout = 1'b1;
@@ -372,7 +372,7 @@ module Washing_Machine(
                     end
                   else
                     begin
-                      counter_comb = counter + 'd1;
+                      counter_comb = counter + 1'd1;
                       timeout = 1'b0;
                     end
                 end
