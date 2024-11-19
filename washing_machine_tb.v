@@ -92,6 +92,8 @@ module Washing_Machine_tb();
           test_case_11();
 
           test_case_12();
+
+          test_case_13();
           
       $finish;
     end
@@ -353,6 +355,45 @@ module Washing_Machine_tb();
   end
 endtask
 
+
+task test_case_13;
+  reg [31:0] random_counter;
+  begin
+    $display("Test case 13 running");
+    // Initialize inputs
+    rst_n_tb = 1'b1;
+    start_tb = 1'b0;
+    dry_wash_tb = 1'b0;
+    #10 rst_n_tb = 1'b0; // Ensure FSM starts in IDLE
+    #10 rst_n_tb = 1'b1;
+
+    // Randomized signal generation loop
+    repeat(30) begin
+      // Randomize control signals
+      random_counter = $random;
+      start_tb = random_counter[0];
+      dry_wash_tb = random_counter[1];
+
+      // Apply inputs for a random duration
+      #(random_counter % 20);
+
+      // Randomly assert reset
+      if ($random % 3 == 0) begin
+        $display("Resetting FSM at time %0t", $time);
+        rst_n_tb = 1'b0;
+        #10 rst_n_tb = 1'b1; // De-assert reset
+      end
+
+      // Monitor FSM state to ensure it transitions to IDLE on reset
+      if (!rst_n_tb) begin
+        if (DUT.current_state != IDLE) begin
+          $error("FSM did not return to IDLE state as expected at time %0t", $time);
+        end
+      end
+    end
+    $display("Test case 13 passed");
+  end
+endtask
 
   task delay(input [31:0] numberOfCounts);
     begin  
