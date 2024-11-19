@@ -1,4 +1,4 @@
-`timescale 1 ns / 1 ps
+`timescale 1 ns / 1 ns
 
 module Washing_Machine_tb();
   
@@ -26,17 +26,17 @@ module Washing_Machine_tb();
              DRY         = 3'b101,
              STEAM_CLEAN = 3'b110;
             
-  localparam numberOfCounts_1minute  = 32'd60, //fill water
-             numberOfCounts_2minutes = 32'd120, // spin
-             numberOfCounts_5minutes = 32'd300, // wash and rinse
-             numberofCounts_10minutes = 32'd600; //dry,steam clean
-             
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-///////////////////////////////////////////////// Variables //////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-             
-  reg [9:0] period;
-  
+  localparam numberOfCounts_10seconds  = 6'd10, //fill water
+             numberOfCounts_20seconds = 6'd20, //spin
+             numberOfCounts_50seconds = 6'd50, //wash and rinse
+             numberofCounts_1minute = 6'd60, //dry,steam clean
+             period = 10'd1000; //for clock period 
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////// Variables ///////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////////////
+ 
+              
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////// initial block ////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -87,9 +87,6 @@ module Washing_Machine_tb();
           // as long as the time_pause input is set.
           test_case_10();
 
-          // Reset
-          reset();
-
           // Test case 11: Check the workability of the dry wash option and that it transitions to the STEAM_CLEAN
           //phase once dry_wash is set to high.
           test_case_11();
@@ -108,8 +105,8 @@ module Washing_Machine_tb();
       clk_tb = 1'b0;
       start_tb = 1'b0;
       double_wash_tb = 1'b0;
+      dry_wash_tb = 1'b0;
       time_pause_tb = 1'b0;
-      period = 'd1000;
     end
   endtask
   
@@ -128,7 +125,7 @@ module Washing_Machine_tb();
       $display("Test case 1 running");
       start_tb = 1'b1;
       rst_n_tb = 1'b0;
-      #(period)
+      #(period);
       if( DUT.current_state == IDLE )
         begin
           $display("Test case 1 passed");
@@ -145,7 +142,7 @@ module Washing_Machine_tb();
       $display("Test case 2 running");
       rst_n_tb = 1'b1;
       start_tb = 1'b1;
-      #(period)
+      #(period);
       if( DUT.current_state == FILL_WATER )
         $display("Test case 2 passed");
       else
@@ -156,7 +153,7 @@ module Washing_Machine_tb();
   task test_case_3;
     begin
       $display("Test case 3 running");
-      delay(numberOfCounts_1minute);
+      delay(numberOfCounts_10seconds);
       if( DUT.current_state == WASH)
         begin
           $display("Test case 3 passed");
@@ -171,7 +168,7 @@ module Washing_Machine_tb();
   task test_case_4;
     begin
       $display("Test case 4 running");
-      delay(numberOfCounts_5minutes);
+      delay(numberOfCounts_50seconds);
       if( DUT.current_state == RINSE)
         begin
           $display("Test case 4 passed");
@@ -186,7 +183,7 @@ module Washing_Machine_tb();
   task test_case_5;
     begin
       $display("Test case 5 running");
-      delay(numberOfCounts_5minutes);
+      delay(numberOfCounts_50seconds);
       if( DUT.current_state == SPIN)
         begin
           $display("Test case 5 passed");
@@ -201,7 +198,7 @@ module Washing_Machine_tb();
   task test_case_6;
     begin
       $display("Test case 6 running");
-      delay(numberOfCounts_2minutes);
+      delay(numberOfCounts_20seconds);
       if( DUT.current_state == DRY)
         begin
           $display("Test case 6 passed");
@@ -216,7 +213,7 @@ module Washing_Machine_tb();
   task test_case_7;
     begin
       $display("Test case 7 running");
-      delay(numberofCounts_10minutes);
+      delay(numberofCounts_1minute);
       if( DUT.current_state == IDLE)
         begin
           $display("Test case 7 passed");
@@ -257,19 +254,19 @@ module Washing_Machine_tb();
     begin
       $display("Test case 9 running");
       double_wash_tb = 'd1;
-      delay(numberOfCounts_1minute);
+      delay(numberOfCounts_10seconds);
       // Now filling water is over
-      delay(numberOfCounts_5minutes);
+      delay(numberOfCounts_50seconds);
       // Now first washing is over
-      delay(numberOfCounts_5minutes);
+      delay(numberOfCounts_50seconds);
       // Now first rinsing is over
       if(DUT.current_state == WASH)
         begin
-          delay(numberOfCounts_5minutes);
+          delay(numberOfCounts_50seconds);
           // Now second washing is over
           if(DUT.current_state == RINSE)
             begin
-              delay(numberOfCounts_5minutes);
+              delay(numberOfCounts_50seconds);
               // Now second rinsing is over
               if(DUT.current_state == SPIN)
                 begin
@@ -296,11 +293,11 @@ module Washing_Machine_tb();
     begin
       $display("Test case 10 running");
       time_pause_tb = 1'b1;
-      delay(numberOfCounts_1minute);
+      delay(numberOfCounts_10seconds);
       if(DUT.current_state == SPIN)
         begin
           time_pause_tb = 1'b0;
-          delay(numberOfCounts_2minutes);
+          delay(numberOfCounts_20seconds);
           if(DUT.current_state == DRY)
             begin
               $display("Test case 10 passed");
@@ -320,12 +317,13 @@ module Washing_Machine_tb();
     task test_case_11;
     begin
       $display("Test case 11 running");
+      reset();
       rst_n_tb = 1'b1;
       start_tb = 1'b1;
       dry_wash_tb = 1'b1;
       #(period);
       dry_wash_tb = 1'b0;
-      delay(numberofCounts_10minutes);
+      delay(numberofCounts_1minute);
       if( DUT.current_state == IDLE)
         $display("Test case 11 passed");
       else
@@ -339,17 +337,11 @@ module Washing_Machine_tb();
     reset();
     start_tb = 1'b1;
     #(period);
-    delay(numberOfCounts_1minute / 2.0); // Let the counter reach halfway
-    $display("Counter before pause: %d", DUT.counter);
-    $display("Current State: %d", DUT.current_state);
-    $display("Timeout flag: %d", DUT.timeout);
+    delay(numberOfCounts_10seconds / 2.0); // Let the counter reach halfway
     time_pause_tb = 1'b1;
     #(period * 3);                // Pause for a while
-    $display("Counter after pause: %d", DUT.counter);
-    $display("Current State: %d", DUT.current_state);
-    $display("Timeout flag: %d", DUT.timeout);
     time_pause_tb = 1'b0;      
-    delay(numberOfCounts_1minute / 2.0); // Resume and complete counting;
+    delay(numberOfCounts_10seconds / 2.0); // Resume and complete counting;
     $display("Counter after resume: %d", DUT.counter);
     $display("Current State: %d", DUT.current_state);
     $display("Timeout flag: %d", DUT.timeout); 
@@ -362,7 +354,7 @@ module Washing_Machine_tb();
 endtask
 
 
-  task delay(input [31:0]  numberOfCounts);
+  task delay(input [31:0] numberOfCounts);
     begin  
        #(numberOfCounts * period);
     end
@@ -373,7 +365,7 @@ endtask
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
   
   always
-    #(period/2.0) clk_tb = ~clk_tb;
+    #(period / 2.0) clk_tb = ~clk_tb;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////// DUT Instantation ////////////////////////////////////////////////
