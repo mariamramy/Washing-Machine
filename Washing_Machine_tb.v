@@ -144,6 +144,7 @@ module Washing_Machine_tb();
       $display("Test case 2 running");
       rst_n_tb = 1'b1;
       start_tb = 1'b1;
+      dry_wash_tb = 1'b0;
       #(period);
       if( DUT.current_state == FILL_WATER )
         $display("Test case 2 passed");
@@ -294,6 +295,7 @@ module Washing_Machine_tb();
   task test_case_10;
     begin
       $display("Test case 10 running");
+      double_wash_tb = 'd0;
       time_pause_tb = 1'b1;
       delay(numberOfCounts_10seconds);
       if(DUT.current_state == SPIN)
