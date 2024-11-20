@@ -31,11 +31,6 @@ module Washing_Machine_tb();
              numberOfCounts_50seconds = 6'd50, //wash and rinse
              numberofCounts_1minute = 6'd60, //dry,steam clean
              period = 10'd1000; //for clock period 
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-////////////////////////////////////////////// Variables ///////////////////////////////////////////////////
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
- 
               
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////// initial block ////////////////////////////////////////////////////
@@ -60,19 +55,19 @@ module Washing_Machine_tb();
           // Test case 2: Check that a cycle starts only when a start is asserted.
           test_case_2();
         
-          // Test case 3: Check that the filling water phase takes 1 minute.
+          // Test case 3: Check that the filling water phase takes 10 seconds.
           test_case_3();
       
-          // Test case 4: Check that the washing phase takes 5 minutes.
+          // Test case 4: Check that the washing phase takes 50 seconds.
      	    test_case_4();
       
-          // Test case 5: Check that the rinsing phase takes 5 minutes.
+          // Test case 5: Check that the rinsing phase takes 50 seconds.
           test_case_5();
       
-          // Test case 6: Check that the spinning phase takes 2 minutes.
+          // Test case 6: Check that the spinning phase takes 20 seconds.
           test_case_6();
 
-          // Test case 7: Check that the drying phase takes 10 minutes.
+          // Test case 7: Check that the drying phase takes 1 minute.
           test_case_7();
       
           // Test case 8: Check that the output done is set after the drying phase is completed and
@@ -358,44 +353,44 @@ module Washing_Machine_tb();
 endtask
 
 
-task test_case_13;
-  reg [31:0] random_counter;
-  begin
-    $display("Test case 13 running");
-    // Initialize inputs
-    rst_n_tb = 1'b1;
-    start_tb = 1'b0;
-    dry_wash_tb = 1'b0;
-    #10 rst_n_tb = 1'b0; // Ensure FSM starts in IDLE
-    #10 rst_n_tb = 1'b1;
+  task test_case_13;
+    reg [31:0] random_counter;
+    begin
+      $display("Test case 13 running");
+      // Initialize inputs
+      rst_n_tb = 1'b1;
+      start_tb = 1'b0;
+      dry_wash_tb = 1'b0;
+      #10 rst_n_tb = 1'b0; // Ensure FSM starts in IDLE
+      #10 rst_n_tb = 1'b1;
 
-    // Randomized signal generation loop
-    repeat(30) begin
-      // Randomize control signals
-      random_counter = $random;
-      start_tb = random_counter[0];
-      dry_wash_tb = random_counter[1];
+      // Randomized signal generation loop
+      repeat(30) begin
+        // Randomize control signals
+        random_counter = $random;
+        start_tb = random_counter[0];
+        dry_wash_tb = random_counter[1];
 
-      // Apply inputs for a random duration
-      #(random_counter % 20);
+        // Apply inputs for a random duration
+        #(random_counter % 20);
 
-      // Randomly assert reset
-      if ($random % 3 == 0) begin
-        $display("Resetting FSM at time %0t", $time);
-        rst_n_tb = 1'b0;
-        #10 rst_n_tb = 1'b1; // De-assert reset
-      end
+        // Randomly assert reset
+        if ($random % 3 == 0) begin
+          $display("Resetting FSM at time %0t", $time);
+          rst_n_tb = 1'b0;
+          #10 rst_n_tb = 1'b1; // De-assert reset
+        end
 
-      // Monitor FSM state to ensure it transitions to IDLE on reset
-      if (!rst_n_tb) begin
-        if (DUT.current_state != IDLE) begin
-          $error("FSM did not return to IDLE state as expected at time %0t", $time);
+        // Monitor FSM state to ensure it transitions to IDLE on reset
+        if (!rst_n_tb) begin
+          if (DUT.current_state != IDLE) begin
+            $error("FSM did not return to IDLE state as expected at time %0t", $time);
+          end
         end
       end
+      $display("Test case 13 passed");
     end
-    $display("Test case 13 passed");
-  end
-endtask
+  endtask
 
   task delay(input [31:0] numberOfCounts);
     begin  
