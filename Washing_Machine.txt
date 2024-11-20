@@ -1,0 +1,1386 @@
+QuestaSim-64 vcover 10.6c Coverage Utility 2017.07 Jul 26 2017
+Start time: 03:08:43 on Nov 20,2024
+vcover report Washing_Machine.ucdb -details -all 
+Coverage Report by file with details
+
+=================================================================================
+=== File: Washing_Machine.v
+=================================================================================
+Statement Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                           75        67         8      89.3
+
+================================Statement Details================================
+
+Statement Coverage for file Washing_Machine.v --
+NOTE: The modification timestamp for source file 'Washing_Machine.v' has been altered since compilation.
+
+    1                                                //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    2                                                //////////////////////////// Module ports list, declaration, and data type ///////////////////////////////
+    3                                                //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    4                                                
+    5                                                module Washing_Machine(
+    6                                                  input wire rst_n,
+    7                                                  input wire clk,
+    8                                                  input wire start,
+    9                                                  input wire double_wash,
+    10                                                 input wire dry_wash,
+    11                                                 input wire time_pause,  // time_pause input added
+    12                                                 output reg done);
+    13                                               
+    14                                               //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    15                                               ///////////////////////////////////////////////// Parameters /////////////////////////////////////////////
+    16                                               //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    17                                                 
+    18                                                 // Define states
+    19                                                 localparam IDLE        = 3'b000,
+    20                                                            FILL_WATER  = 3'b001,
+    21                                                            WASH        = 3'b010,
+    22                                                            RINSE       = 3'b011,
+    23                                                            SPIN        = 3'b100,
+    24                                                            DRY         = 3'b101,
+    25                                                            STEAM_CLEAN = 3'b110;
+    26                                                         
+    27                                                 // Define the number of counts required by the counter to reach specific time
+    28                                                 localparam numberOfCounts_10seconds  = 6'd9, //fill water
+    29                                                            numberOfCounts_20seconds = 6'd19, // spin
+    30                                                            numberOfCounts_50seconds = 6'd49, // wash and rinse
+    31                                                            numberofCounts_1minute = 6'd59; //dry,steam clean
+    32                                                 
+    33                                               
+    34                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    35                                               //////////////////////////////// Variables and Internal Connections ////////////////////////////////////////
+    36                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    37                                               
+    38                                                 reg [2:0] current_state, next_state;
+    39                                                 reg [5:0] counter, counter_comb;
+    40                                                 reg timeout;
+    41                                                 reg [1:0] number_of_washes;
+    42                                                 
+    43                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    44                                               //////////////////////////////////// Sequential Procedural Blocks //////////////////////////////////////////
+    45                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    46                                               
+    47                                                   // Logic to support the "double wash" option. A counter number_of_washes is used to count the number of
+    48                                                   // washes in order to make 2 washes whenever the user requests a double wash.
+    49              1                         32         always@(posedge clk)
+    50                                                     begin
+    51                                                       // If a wash cycle is completed OR the reset button is pressed, reset the number of washes counter for the next
+    52                                                       // user to be able to use the "double wash" option
+    53                                                       if(current_state == IDLE)
+    54                                                         begin
+    55              1                          6                 number_of_washes <= 'd0;
+    56                                                         end
+    57                                                       // If the washing phase is completed, increment the number of washes counter
+    58                                                       else if( (current_state == WASH) && timeout )
+    59                                                         begin
+    60              1                          3                 number_of_washes <= number_of_washes + 'd1;
+    61                                                         end
+    62                                                     end  
+    63                                               
+    64                                                 // Current state sequential logic
+    65              1                         42       always@(posedge clk or negedge rst_n)
+    66                                                   begin
+    67                                                     // If the reset button is pressed, go to the idle state asynchronously
+    68                                                     if(!rst_n)
+    69                                                       begin
+    70              1                         11               current_state <= IDLE;
+    71                                                       end
+    72                                                     // Otherwise, go to the state decided by the next state combinational logic
+    73                                                     else
+    74                                                       begin
+    75              1                         31               current_state <= next_state;
+    76                                                       end
+    77                                                   end
+    78                                               
+    79                                                 // 32-bit counter sequential logic
+    80              1                        507       always@(posedge clk or negedge rst_n)
+    81                                                   begin
+    82                                                     // If the reset button is pressed, the counter is reset asynchronously
+    83                                                     if(!rst_n)
+    84                                                       begin
+    85              1                         11               counter <= 'd0;
+    86                                                       end
+    87                                                     // Otherwise, the counter is loaded with the value decided by the counter's combinational logic
+    88                                                     else
+    89                                                       begin
+    90              1                        496               counter <= counter_comb;
+    91                                                       end
+    92                                                   end
+    93                                                   
+    94                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    95                                               //////////////////////////////////// Combinational Procedural Blocks ///////////////////////////////////////
+    96                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    97                                                 
+    98                                                 // Next state combinational logic
+    99              1                         76       always@(*)
+    100                                                  begin
+    101                                                    // Initial value to avoid unintentional latches
+    102             1                         76           next_state = IDLE;
+    103                                                    case(current_state)
+    104                                                      IDLE:
+    105                                                        begin
+    106                                                          // Check if user wants to steam clean
+    107                                                          if(dry_wash && start)
+    108                                                            begin    
+    109             1                          5                     next_state = STEAM_CLEAN;
+    110                                                            end
+    111                                                          // Otherwise, Begin the operation only when a start is asserted
+    112                                                          else if(start)
+    113                                                            begin
+    114             1                         14                     next_state = FILL_WATER;
+    115                                                            end
+    116                                                          // Otherwise, stay in IDLE state
+    117                                                          else 
+    118                                                          begin  
+    119             1                         13                 next_state = current_state;
+    120                                                          end  
+    121                                                        end
+    122                                                      FILL_WATER:
+    123                                                        begin
+    124                                                          // Go to the next state (wash) when the filling water's duration (2 minutes) is over
+    125                                                          if(timeout)
+    126                                                            begin
+    127             1                          3                     next_state = WASH;
+    128                                                            end
+    129                                                          // Otherwise, continue filling water
+    130                                                          else
+    131                                                            begin
+    132             1                          4                     next_state = current_state;
+    133                                                            end
+    134                                                        end
+    135                                                      WASH:
+    136                                                        begin
+    137                                                          // Go to the next phase (rinse) when the washing's duration (5 minutes) is over
+    138                                                          if(timeout)
+    139                                                            begin
+    140             1                          7                     next_state = RINSE;
+    141                                                            end
+    142                                                          else
+    143                                                            begin
+    144                                                              // Otherwise, continue washing
+    145             1                          5                     next_state = current_state;
+    146                                                            end
+    147                                                        end
+    148                                                      RINSE:
+    149                                                        begin
+    150                                                          if(timeout)
+    151                                                            begin
+    152                                                              // when the rinsing's duration is over, check if the user is requesting a second wash
+    153                                                              if(double_wash)
+    154                                                                begin
+    155                                                                  // Check the number_of_washes counter first. If we have done only 1 wash, then go to the 
+    156                                                                  // WASHING state for the second wash.
+    157                                                                  if(number_of_washes == 'd1)
+    158                                                                    begin
+    159             1                          2                             next_state = WASH;
+    160                                                                    end
+    161                                                                  // Otherwise if the second wash is already done, go to the SPINNING state.
+    162                                                                  else
+    163                                                                    begin
+    164             1                          2                             next_state = SPIN;
+    165                                                                    end
+    166                                                                end
+    167                                                              // If no second wash is requested by the user, then go to the SPINNING state.
+    168                                                              else
+    169                                                                begin
+    170             1                          2                         next_state = SPIN;
+    171                                                                end
+    172                                                            end
+    173                                                          // Otherwise, if the rinsing phase's duration is not over yet, remain in the rinsing state
+    174                                                          else
+    175                                                            begin
+    176             1                          3                     next_state = current_state;
+    177                                                            end
+    178                                                        end
+    179                                                      SPIN:
+    180                                                        begin
+    181                                                          // When the spinning phase is over, go to DRY state
+    182                                                          if(timeout)
+    183                                                            begin
+    184             1                          4                     next_state = DRY;
+    185                                                            end
+    186                                                          // Otherwise, continue spinning
+    187                                                          else
+    188                                                            begin
+    189             1                          3                     next_state = current_state;
+    190                                                            end
+    191                                                        end
+    192                                              
+    193                                                      DRY:
+    194                                                        begin
+    195                                                          // When the drying phase is over (and accordingly the whole operation), return to IDLE state
+    196                                                          if(timeout)
+    197                                                            begin
+    198             1                          3                     next_state = IDLE;
+    199                                                            end
+    200                                                          // Otherwise, continue drying
+    201                                                          else
+    202                                                            begin
+    203             1                          2                     next_state = current_state;
+    204                                                            end
+    205                                                        end
+    206                                                      STEAM_CLEAN:
+    207                                                        begin
+    208                                                          // When the steam cleaning phase is over, return to IDLE state
+    209                                                          if(timeout)
+    210                                                            begin
+    211             1                          1                     next_state = IDLE;
+    212                                                            end
+    213                                                          // Otherwise, continue steam cleaning
+    214                                                          else
+    215                                                            begin
+    216             1                          2                     next_state = current_state;
+    217                                                            end
+    218                                                        end    
+    219                                                      // A default case for any unexpected behavior and to also avoid any unintentional latches
+    220                                                      default:
+    221                                                        begin
+    222             1                          1                 next_state = IDLE;
+    223                                                        end
+    224                                                    endcase
+    225                                                  end
+    226                                                  
+    227                                                // Output combinational logic
+    228             1                         20       always@(*)
+    229                                                  begin
+    230                                                    // As long as the machine is not being used, the output done is set indicating the availability of
+    231                                                    // the machine. When a user starts the machine, the output done is deasserted indicating that an 
+    232                                                    // operation is currently running (i.e. the machine is not available).
+    233                                                    if(current_state == IDLE)
+    234                                                      begin
+    235             1                          5               done = 'd1;
+    236                                                      end
+    237                                                    else
+    238                                                      begin
+    239             1                         15               done = 'd0;
+    240                                                      end
+    241                                                  end
+    242                                              
+    243                                                // 32-bit counter combinational logic
+    244             1                        502       always@(*)
+    245                                                  begin
+    246                                                    // Initial values to avoid unintentional latches
+    247             1                        502           counter_comb = counter;
+    248             1                        502           timeout = 1'b0;
+    249                                                    case(current_state)
+    250                                                      IDLE:
+    251                                                      // Counter should not count in the IDLE state
+    252                                                        begin
+    253             1                          5                 counter_comb = 'd0;
+    254             1                          5                 timeout = 1'b0;
+    255                                                        end
+    256                                                      FILL_WATER:
+    257                                                      // Counter should count a number of counts equivalent to 1 minute
+    258                                                              begin
+    259                                                                // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
+    260                                                                if(counter == numberOfCounts_10seconds)
+    261                                                                  begin
+    262             1                          3                           counter_comb = 'd0;
+    263             1                          3                           timeout = 1'b1;
+    264                                                                  end
+    265                                                                // Otherwise, if the user has requested to pause the timer, freeze the counter until time_pause is deasserted
+    266                                                                else if(time_pause)
+    267                                                                  begin
+    268             1                          1                           counter_comb = counter;
+    269             1                          1                           timeout = 1'b0;
+    270                                                                  end
+    271                                                                // Otherwise, increment the counter and keep the timeout flag deasserted
+    272                                                                else
+    273                                                                  begin
+    274             1                         28                           counter_comb = counter + 1'd1;
+    275             1                         28                           timeout = 1'b0;
+    276                                                                  end
+    277                                                              end 
+    278                                                      WASH:
+    279                                                      // Counter should count a number of counts equivalent to 5 minutes
+    280                                                              begin
+    281                                                                // If the counter has reached the required number of counts, reset the counter and fire the timeout flag
+    282                                                                if(counter == numberOfCounts_50seconds)
+    283                                                                  begin
+    284             1                          3                           counter_comb = 'd0;
+    285             1                          3                           timeout = 1'b1;
+    286                                                                  end
+    287                                                                // Otherwise, if the user has requested to pause the timer, freeze the counter until time_pause is deasserted
+    288                                                                else if(time_pause)
+    289                                                                  begin
+    290             1                    ***0***                           counter_comb = counter;
+    291             1                    ***0***                           timeout = 1'b0;
+    292                                                                  end
+    293                                                                // Otherwise, increment the counter and keep the timeout flag deasserted
+    294                                                                else
+    295                                                                  begin
+    296             1                        148                           counter_comb = counter + 1'd1;
+    297             1                        148                           timeout = 1'b0;
+    298                                                                  end
+    299                                                              end
+    300                                                      RINSE:
+    301                                                      // Counter should count a number of counts equivalent to 5 minutes
+    302                                                              begin
+    303                                                                // Same logic as the washing phase
+    304                                                                if(counter == numberOfCounts_50seconds)
+    305                                                                  begin
+    306             1                          3                           counter_comb = 'd0;
+    307             1                          3                           timeout = 1'b1;
+    308                                                                  end
+    309                                                                else if(time_pause)
+    310                                                                  begin
+    311             1                    ***0***                           counter_comb = counter;
+    312             1                    ***0***                           timeout = 1'b0;
+    313                                                                  end
+    314                                                                else
+    315                                                                  begin
+    316             1                        147                           counter_comb = counter + 1'd1;
+    317             1                        147                           timeout = 1'b0;
+    318                                                                  end
+    319                                                              end  
+    320                                                      SPIN:
+    321                                                      // Counter should count a number of counts equivalent to 2 minutes
+    322                                                              begin
+    323                                                                // Same logic as the previous phases but for 2 minutes
+    324                                                                if(counter == numberOfCounts_20seconds)
+    325                                                                  begin
+    326             1                          2                           counter_comb = 'd0;
+    327             1                          2                           timeout = 1'b1;
+    328                                                                  end
+    329                                                                else if(time_pause)
+    330                                                                  begin
+    331             1                          1                           counter_comb = counter;
+    332             1                          1                           timeout = 1'b0;
+    333                                                                  end
+    334                                                                else
+    335                                                                  begin
+    336             1                         39                           counter_comb = counter + 1'd1;
+    337             1                         39                           timeout = 1'b0;
+    338                                                                  end
+    339                                                              end
+    340                                                      DRY:
+    341                                                      // Counter should count a number of counts equivalent to 10 minutes
+    342                                                              begin
+    343                                                                // Same logic as the previous phases but for 10 minutes
+    344                                                                if(counter == numberofCounts_1minute)
+    345                                                                  begin
+    346             1                          1                           counter_comb = 'd0;
+    347             1                          1                           timeout = 1'b1;
+    348                                                                  end
+    349                                                                else if(time_pause)
+    350                                                                  begin
+    351             1                    ***0***                           counter_comb = counter;
+    352             1                    ***0***                           timeout = 1'b0;
+    353                                                                  end
+    354                                                                else
+    355                                                                  begin
+    356             1                         60                           counter_comb = counter + 1'd1;
+    357             1                         60                           timeout = 1'b0;
+    358                                                                  end
+    359                                                              end
+    360                                                      STEAM_CLEAN:
+    361                                                      // Same logic as drying phase
+    362                                                              begin
+    363                                                                if(counter == numberofCounts_1minute)
+    364                                                                  begin
+    365             1                          1                           counter_comb = 'd0;
+    366             1                          1                           timeout = 1'b1;
+    367                                                                  end
+    368                                                                else if(time_pause)
+    369                                                                  begin
+    370             1                    ***0***                           counter_comb = counter;
+    371             1                    ***0***                           timeout = 1'b0;
+    372                                                                  end
+    373                                                                else
+    374                                                                  begin
+    375             1                         59                           counter_comb = counter + 1'd1;
+    376             1                         59                           timeout = 1'b0;
+    377                                                                  end
+    378                                                              end
+    379                                                      default:
+    380                                                        begin
+    381             1                          1                 counter_comb = 'd0;
+    382             1                          1                 timeout = 1'b0;
+    383                                                        end
+    384                                                    endcase
+    385                                                  end
+    386                                              
+    387                                              
+    388                                              
+    389                                                  
+    390                                                  
+    391                                              /*
+    392                                              Ensure the washing machine starts in IDLE when reset is asserted
+    393                                              psl default clock = rose(clk);
+    394                                              psl property Reset_To_IDLE = always (rst_n == 0 -> next(current_state == IDLE));
+    395                                              psl assert Reset_To_IDLE;
+    396                                              */
+    397                                              
+    398                                              // Ensure 'done' is high only in the IDLE state
+    399                                              // psl property Done_Only_In_IDLE = always ((current_state == IDLE) -> (done == 1));
+    400                                              //psl assert Done_Only_In_IDLE;
+    401                                              
+    402                                              // Ensure proper transition from IDLE to FILL_WATER when 'start' is asserted
+    403                                              // psl property IDLE_To_FILL_WATER = always ((current_state == IDLE && start && !dry_wash) -> eventually!(current_state == FILL_WATER));
+    404                                              // psl assert IDLE_To_FILL_WATER;
+    405                                              
+    406                                              // Ensure correct double wash behavior: RINSE -> WASH if 'double_wash' is enabled and number_of_washes == 1
+    407                                              // psl property Double_Wash_Transition = always ((current_state == RINSE && double_wash && number_of_washes == 1) -> eventually!(current_state == WASH));
+    408                                              // psl assert Double_Wash_Transition;
+    409                                              
+    410                                              // Ensure timeout flag is set at correct counter values
+    411                                              //psl property Timeout_Correctness = always ((current_state == FILL_WATER && counter == numberOfCounts_10seconds) -> timeout);
+    412                                              //psl assert Timeout_Correctness;
+    413                                              
+    414                                              // Ensure 'time_pause' freezes the counter
+    415                                              // psl property Time_Pause_Functionality = always (time_pause -> (counter == prev(counter_comb)));
+    416                                              // psl assert Time_Pause_Functionality;
+    417                                              
+    418                                              // Ensure proper behavior for STEAM_CLEAN
+    419                                              // psl property Steam_Clean_Behavior = always ((current_state == STEAM_CLEAN && timeout) -> eventually!(current_state == IDLE));
+    420                                              // psl assert Steam_Clean_Behavior;
+    421                                              
+    422                                              endmodule
+
+Branch Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Branches                        62        58         4      93.5
+
+================================Branch Details================================
+
+Branch Coverage for file Washing_Machine.v --
+NOTE: The modification timestamp for source file 'Washing_Machine.v' has been altered since compilation.
+
+------------------------------------IF Branch------------------------------------
+    53                                        32     Count coming in to IF
+    53              1                          6             if(current_state == IDLE)
+    58              1                          3             else if( (current_state == WASH) && timeout )
+                                              23     All False Count
+Branch totals: 3 hits of 3 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    68                                        42     Count coming in to IF
+    68              1                         11           if(!rst_n)
+    73              1                         31           else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    83                                       507     Count coming in to IF
+    83              1                         11           if(!rst_n)
+    88              1                        496           else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------CASE Branch------------------------------------
+    103                                       76     Count coming in to CASE
+    104             1                         32             IDLE:
+    122             1                          7             FILL_WATER:
+    135             1                         12             WASH:
+    148             1                          9             RINSE:
+    179             1                          7             SPIN:
+    193             1                          5             DRY:
+    206             1                          3             STEAM_CLEAN:
+    220             1                          1             default:
+Branch totals: 8 hits of 8 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    107                                       32     Count coming in to IF
+    107             1                          5                 if(dry_wash && start)
+    112             1                         14                 else if(start)
+    117             1                         13                 else 
+Branch totals: 3 hits of 3 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    125                                        7     Count coming in to IF
+    125             1                          3                 if(timeout)
+    130             1                          4                 else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    138                                       12     Count coming in to IF
+    138             1                          7                 if(timeout)
+    142             1                          5                 else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    150                                        9     Count coming in to IF
+    150             1                          6                 if(timeout)
+    174             1                          3                 else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    153                                        6     Count coming in to IF
+    153             1                          4                     if(double_wash)
+    168             1                          2                     else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    157                                        4     Count coming in to IF
+    157             1                          2                         if(number_of_washes == 'd1)
+    162             1                          2                         else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    182                                        7     Count coming in to IF
+    182             1                          4                 if(timeout)
+    187             1                          3                 else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    196                                        5     Count coming in to IF
+    196             1                          3                 if(timeout)
+    201             1                          2                 else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    209                                        3     Count coming in to IF
+    209             1                          1                 if(timeout)
+    214             1                          2                 else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    233                                       20     Count coming in to IF
+    233             1                          5           if(current_state == IDLE)
+    237             1                         15           else
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------CASE Branch------------------------------------
+    249                                      502     Count coming in to CASE
+    250             1                          5             IDLE:
+    256             1                         32             FILL_WATER:
+    278             1                        151             WASH:
+    300             1                        150             RINSE:
+    320             1                         42             SPIN:
+    340             1                         61             DRY:
+    360             1                         60             STEAM_CLEAN:
+    379             1                          1             default:
+Branch totals: 8 hits of 8 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    260                                       32     Count coming in to IF
+    260             1                          3                       if(counter == numberOfCounts_10seconds)
+    266             1                          1                       else if(time_pause)
+    272             1                         28                       else
+Branch totals: 3 hits of 3 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    282                                      151     Count coming in to IF
+    282             1                          3                       if(counter == numberOfCounts_50seconds)
+    288             1                    ***0***                       else if(time_pause)
+    294             1                        148                       else
+Branch totals: 2 hits of 3 branches = 66.6%
+
+------------------------------------IF Branch------------------------------------
+    304                                      150     Count coming in to IF
+    304             1                          3                       if(counter == numberOfCounts_50seconds)
+    309             1                    ***0***                       else if(time_pause)
+    314             1                        147                       else
+Branch totals: 2 hits of 3 branches = 66.6%
+
+------------------------------------IF Branch------------------------------------
+    324                                       42     Count coming in to IF
+    324             1                          2                       if(counter == numberOfCounts_20seconds)
+    329             1                          1                       else if(time_pause)
+    334             1                         39                       else
+Branch totals: 3 hits of 3 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    344                                       61     Count coming in to IF
+    344             1                          1                       if(counter == numberofCounts_1minute)
+    349             1                    ***0***                       else if(time_pause)
+    354             1                         60                       else
+Branch totals: 2 hits of 3 branches = 66.6%
+
+------------------------------------IF Branch------------------------------------
+    363                                       60     Count coming in to IF
+    363             1                          1                       if(counter == numberofCounts_1minute)
+    368             1                    ***0***                       else if(time_pause)
+    373             1                         59                       else
+Branch totals: 2 hits of 3 branches = 66.6%
+
+
+Condition Coverage:
+    Enabled Coverage            Active   Covered    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    FEC Condition Terms              4         4         0     100.0
+
+================================Condition Details================================
+
+Condition Coverage for file Washing_Machine.v --
+NOTE: The modification timestamp for source file 'Washing_Machine.v' has been altered since compilation.
+
+----------------Focused Condition View-------------------
+Line       58 Item    1  ((current_state == 2) && timeout)
+Condition totals: 2 of 2 input terms covered = 100.0%
+
+            Input Term   Covered  Reason for no coverage   Hint
+           -----------  --------  -----------------------  --------------
+  (current_state == 2)         Y
+               timeout         Y
+
+     Rows:       Hits  FEC Target              Non-masking condition(s)      
+ ---------  ---------  --------------------    -------------------------     
+  Row   1:          1  (current_state == 2)_0  -                             
+  Row   2:          1  (current_state == 2)_1  timeout                       
+  Row   3:          1  timeout_0               (current_state == 2)          
+  Row   4:          1  timeout_1               (current_state == 2)          
+
+----------------Focused Condition View-------------------
+Line       107 Item    1  (dry_wash && start)
+Condition totals: 2 of 2 input terms covered = 100.0%
+
+  Input Term   Covered  Reason for no coverage   Hint
+ -----------  --------  -----------------------  --------------
+    dry_wash         Y
+       start         Y
+
+     Rows:       Hits  FEC Target            Non-masking condition(s)      
+ ---------  ---------  --------------------  -------------------------     
+  Row   1:          1  dry_wash_0            -                             
+  Row   2:          1  dry_wash_1            start                         
+  Row   3:          1  start_0               dry_wash                      
+  Row   4:          1  start_1               dry_wash                      
+
+
+Expression Coverage:
+    Enabled Coverage            Active   Covered    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    FEC Expression Terms             0         0         0     100.0
+FSM Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    FSMs                                                        88.4
+        States                       7         7         0     100.0
+        Transitions                 13        10         3      76.9
+
+================================FSM Details================================
+
+FSM Coverage for file Washing_Machine.v --
+
+FSM_ID: current_state
+    Current State Object : current_state
+    ----------------------
+    State Value MapInfo :
+    ---------------------
+Line          State Name               Value
+----          ----------               -----
+ 104                IDLE                   0
+ 122          FILL_WATER                   1
+ 206         STEAM_CLEAN                   6
+ 135                WASH                   2
+ 148               RINSE                   3
+ 179                SPIN                   4
+ 193                 DRY                   5
+    Covered States :
+    ----------------
+                   State           Hit_count
+                   -----           ---------
+                    IDLE                  14
+              FILL_WATER                   6
+             STEAM_CLEAN                   2
+                    WASH                   7
+                   RINSE                   6
+                    SPIN                   4
+                     DRY                   3
+    Covered Transitions :
+    ---------------------
+Line            Trans_ID           Hit_count          Transition          
+----            --------           ---------          ----------          
+ 114                   0                   3          IDLE -> FILL_WATER  
+ 109                   1                   1          IDLE -> STEAM_CLEAN 
+ 127                   2                   3          FILL_WATER -> WASH  
+ 211                   4                   1          STEAM_CLEAN -> IDLE 
+ 140                   5                   3          WASH -> RINSE       
+  70                   6                   1          WASH -> IDLE        
+ 170                   7                   2          RINSE -> SPIN       
+ 159                   8                   1          RINSE -> WASH       
+ 184                  10                   2          SPIN -> DRY         
+ 198                  12                   2          DRY -> IDLE         
+    Uncovered Transitions :
+    -----------------------
+Line            Trans_ID          Transition          
+----            --------          ----------          
+  70                   3          FILL_WATER -> IDLE  
+  70                   9          RINSE -> IDLE       
+  70                  11          SPIN -> IDLE        
+
+
+    Summary                     Active      Hits    Misses % Covered
+    -------                     ------      ----    ------ ---------
+        States                       7         7         0     100.0
+        Transitions                 13        10         3      76.9
+Toggle Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Toggle Bins                     56        56         0     100.0
+
+================================Toggle Details================================
+
+Toggle Coverage for File Washing_Machine.v --
+
+       Line                                   Node      1H->0L      0L->1H  "Coverage"
+--------------------------------------------------------------------------------------
+          6                                  rst_n           1           1      100.00 
+          7                                    clk           1           1      100.00 
+          8                                  start           1           1      100.00 
+          9                            double_wash           1           1      100.00 
+         10                               dry_wash           1           1      100.00 
+         11                             time_pause           1           1      100.00 
+         12                                   done           1           1      100.00 
+         38                          next_state[2]           1           1      100.00 
+         38                          next_state[1]           1           1      100.00 
+         38                          next_state[0]           1           1      100.00 
+         38                       current_state[2]           1           1      100.00 
+         38                       current_state[1]           1           1      100.00 
+         38                       current_state[0]           1           1      100.00 
+         39                        counter_comb[5]           1           1      100.00 
+         39                        counter_comb[4]           1           1      100.00 
+         39                        counter_comb[3]           1           1      100.00 
+         39                        counter_comb[2]           1           1      100.00 
+         39                        counter_comb[1]           1           1      100.00 
+         39                        counter_comb[0]           1           1      100.00 
+         39                             counter[5]           1           1      100.00 
+         39                             counter[4]           1           1      100.00 
+         39                             counter[3]           1           1      100.00 
+         39                             counter[2]           1           1      100.00 
+         39                             counter[1]           1           1      100.00 
+         39                             counter[0]           1           1      100.00 
+         40                                timeout           1           1      100.00 
+         41                    number_of_washes[1]           1           1      100.00 
+         41                    number_of_washes[0]           1           1      100.00 
+
+Total Node Count     =         28 
+Toggled Node Count   =         28 
+Untoggled Node Count =          0 
+
+Toggle Coverage      =      100.0% (56 of 56 bins)
+
+=================================================================================
+=== File: Washing_Machine_tb.v
+=================================================================================
+Statement Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Stmts                          135       118        17      87.4
+
+================================Statement Details================================
+
+Statement Coverage for file Washing_Machine_tb.v --
+
+    1                                                `timescale 1 ns / 1 ns
+    2                                                
+    3                                                module Washing_Machine_tb();
+    4                                                  
+    5                                                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    6                                                ///////////////////////////////////////// DUT Signals ///////////////////////////////////////////////////// 
+    7                                                ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+    8                                                  
+    9                                                  reg rst_n_tb;
+    10                                                 reg clk_tb;
+    11                                                 reg start_tb;
+    12                                                 reg double_wash_tb;
+    13                                                 reg dry_wash_tb;
+    14                                                 reg time_pause_tb;
+    15                                                 wire done_tb;
+    16                                               
+    17                                               //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    18                                               ///////////////////////////////////////////////// Parameters /////////////////////////////////////////////
+    19                                               //////////////////////////////////////////////////////////////////////////////////////////////////////////
+    20                                                 
+    21                                                 localparam IDLE        = 3'b000,
+    22                                                            FILL_WATER  = 3'b001,
+    23                                                            WASH        = 3'b010,
+    24                                                            RINSE       = 3'b011,
+    25                                                            SPIN        = 3'b100,
+    26                                                            DRY         = 3'b101,
+    27                                                            STEAM_CLEAN = 3'b110;
+    28                                                           
+    29                                                 localparam numberOfCounts_10seconds  = 6'd10, //fill water
+    30                                                            numberOfCounts_20seconds = 6'd20, //spin
+    31                                                            numberOfCounts_50seconds = 6'd50, //wash and rinse
+    32                                                            numberofCounts_1minute = 6'd60, //dry,steam clean
+    33                                                            period = 10'd1000; //for clock period 
+    34                                               
+    35                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    36                                               ////////////////////////////////////////////// Variables ///////////////////////////////////////////////////
+    37                                               ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    38                                                
+    39                                                             
+    40                                               /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    41                                               ////////////////////////////////////////// initial block ////////////////////////////////////////////////////
+    42                                               /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    43                                                 
+    44                                                 initial
+    45                                                   begin
+    46                                                     
+    47                                                     // Dump (save) the waveforms
+    48              1                          1           $dumpfile("washing_machine.vcd");
+    49              1                          1           $dumpvars;
+    50                                                            
+    51                                                         // Signals initialization
+    52              1                          1               initialization();
+    53                                                         
+    54                                                         // Reset
+    55              1                          1               reset();
+    56                                                     
+    57                                                         // Test case 1: Check that as long as rst_n is low (even start is on), the machine is in the IDLE state.
+    58              1                          1               test_case_1();
+    59                                                     
+    60                                                         // Test case 2: Check that a cycle starts only when a start is asserted.
+    61              1                          1               test_case_2();
+    62                                                       
+    63                                                         // Test case 3: Check that the filling water phase takes 1 minute.
+    64              1                          1               test_case_3();
+    65                                                     
+    66                                                         // Test case 4: Check that the washing phase takes 5 minutes.
+    67              1                          1          	    test_case_4();
+    68                                                     
+    69                                                         // Test case 5: Check that the rinsing phase takes 5 minutes.
+    70              1                          1               test_case_5();
+    71                                                     
+    72                                                         // Test case 6: Check that the spinning phase takes 2 minutes.
+    73              1                          1               test_case_6();
+    74                                               
+    75                                                         // Test case 7: Check that the drying phase takes 10 minutes.
+    76              1                          1               test_case_7();
+    77                                                     
+    78                                                         // Test case 8: Check that the output done is set after the drying phase is completed and
+    79                                                         // remains high until start is set again.
+    80              1                          1               test_case_8();
+    81                                                     
+    82                                                         // Test case 9: Check the workability of the double wash option and that washing and rinsing stages
+    83                                                         // are repeated when double_wash is high.
+    84              1                          1               test_case_9();
+    85                                                     
+    86                                                         // Test case 10: Check the workability of the time pause option and that the current phase is paused
+    87                                                         // as long as the time_pause input is set.
+    88              1                          1               test_case_10();
+    89                                               
+    90                                                         // Test case 11: Check the workability of the dry wash option and that it transitions to the STEAM_CLEAN
+    91                                                         //phase once dry_wash is set to high.
+    92              1                          1               test_case_11();
+    93                                               
+    94              1                          1               test_case_12();
+    95                                               
+    96              1                          1               test_case_13();
+    97                                                         
+    98              1                          1           $finish;
+    99                                                   end
+    100                                                
+    101                                              /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    102                                              //////////////////////////////////////////////// TASKS //////////////////////////////////////////////////
+    103                                              /////////////////////////////////////////////////////////////////////////////////////////////////////////
+    104                                              
+    105                                                task initialization();
+    106                                                  begin
+    107             1                          1           clk_tb = 1'b0;
+    108             1                          1           start_tb = 1'b0;
+    109             1                          1           double_wash_tb = 1'b0;
+    110             1                          1           dry_wash_tb = 1'b0;
+    111             1                          1           time_pause_tb = 1'b0;
+    112                                                  end
+    113                                                endtask
+    114                                                
+    115                                                task reset;
+    116                                                  begin
+    117             1                          3           rst_n_tb = 'd1;
+    118             1                          3           #1
+    119             1                          3           rst_n_tb = 'd0;
+    120             1                          3           #1
+    121             1                          3           rst_n_tb = 'd1;
+    122                                                  end
+    123                                                endtask 
+    124                                                
+    125                                                task test_case_1;
+    126                                                  begin
+    127             1                          1           $display("Test case 1 running");
+    128             1                          1           start_tb = 1'b1;
+    129             1                          1           rst_n_tb = 1'b0;
+    130             1                          1           #(period);
+    131                                                    if( DUT.current_state == IDLE )
+    132                                                      begin
+    133             1                          1               $display("Test case 1 passed");
+    134                                                      end
+    135                                                    else
+    136                                                      begin
+    137             1                    ***0***               $display("Test case 1 failed");
+    138                                                      end
+    139                                                  end
+    140                                                endtask
+    141                                                
+    142                                                task test_case_2;
+    143                                                  begin
+    144             1                          1           $display("Test case 2 running");
+    145             1                          1           rst_n_tb = 1'b1;
+    146             1                          1           start_tb = 1'b1;
+    147             1                          1           dry_wash_tb = 1'b0;
+    148             1                          1           #(period);
+    149                                                    if( DUT.current_state == FILL_WATER )
+    150             1                          1             $display("Test case 2 passed");
+    151                                                    else
+    152             1                    ***0***             $display("Test case 2 failed");
+    153                                                  end
+    154                                                endtask
+    155                                                
+    156                                                task test_case_3;
+    157                                                  begin
+    158             1                          1           $display("Test case 3 running");
+    159             1                          1           delay(numberOfCounts_10seconds);
+    160                                                    if( DUT.current_state == WASH)
+    161                                                      begin
+    162             1                          1               $display("Test case 3 passed");
+    163                                                      end
+    164                                                    else
+    165                                                      begin
+    166             1                    ***0***               $display("Test case 3 failed");
+    167                                                      end
+    168                                              	   end
+    169                                                endtask
+    170                                                
+    171                                                task test_case_4;
+    172                                                  begin
+    173             1                          1           $display("Test case 4 running");
+    174             1                          1           delay(numberOfCounts_50seconds);
+    175                                                    if( DUT.current_state == RINSE)
+    176                                                      begin
+    177             1                          1               $display("Test case 4 passed");
+    178                                                      end
+    179                                                    else
+    180                                                      begin
+    181             1                    ***0***               $display("Test case 4 failed");
+    182                                                      end
+    183                                              	   end
+    184                                                endtask
+    185                                                
+    186                                                task test_case_5;
+    187                                                  begin
+    188             1                          1           $display("Test case 5 running");
+    189             1                          1           delay(numberOfCounts_50seconds);
+    190                                                    if( DUT.current_state == SPIN)
+    191                                                      begin
+    192             1                          1               $display("Test case 5 passed");
+    193                                                      end
+    194                                                    else
+    195                                                      begin
+    196             1                    ***0***               $display("Test case 5 failed");
+    197                                                      end
+    198                                              	   end
+    199                                                endtask
+    200                                                
+    201                                                task test_case_6;
+    202                                                  begin
+    203             1                          1           $display("Test case 6 running");
+    204             1                          1           delay(numberOfCounts_20seconds);
+    205                                                    if( DUT.current_state == DRY)
+    206                                                      begin
+    207             1                          1               $display("Test case 6 passed");
+    208                                                      end
+    209                                                    else
+    210                                                      begin
+    211             1                    ***0***               $display("Test case 6 failed");
+    212                                                      end
+    213                                                  end
+    214                                                endtask
+    215                                              
+    216                                                task test_case_7;
+    217                                                  begin
+    218             1                          1           $display("Test case 7 running");
+    219             1                          1           delay(numberofCounts_1minute);
+    220                                                    if( DUT.current_state == IDLE)
+    221                                                      begin
+    222             1                          1               $display("Test case 7 passed");
+    223                                                      end
+    224                                                    else
+    225                                                      begin
+    226             1                    ***0***               $display("Test case 7 failed");
+    227                                                      end
+    228                                                  end
+    229                                                endtask
+    230                                                
+    231                                                task test_case_8;
+    232                                                  begin
+    233             1                          1           $display("Test case 8 running");
+    234             1                          1           start_tb = 1'b0;
+    235             1                          1           #(period * 6);
+    236                                                    if(done_tb == 1'b1)
+    237                                                      begin
+    238             1                          1               start_tb = 1'b1;
+    239             1                          1               #(period);
+    240                                                        if(done_tb == 1'b0)
+    241                                                          begin
+    242             1                          1                   $display("Test case 8 passed");
+    243                                                          end
+    244                                                        else
+    245                                                          begin
+    246             1                    ***0***                   $display("Test case 8 failed");
+    247                                                          end
+    248                                                      end
+    249                                                    else
+    250                                                      begin
+    251             1                    ***0***               $display("Test case 8 failed");
+    252                                                      end
+    253                                                  end
+    254                                                endtask
+    255                                                
+    256                                                task test_case_9;
+    257                                                  begin
+    258             1                          1           $display("Test case 9 running");
+    259             1                          1           double_wash_tb = 'd1;
+    260             1                          1           delay(numberOfCounts_10seconds);
+    261                                                    // Now filling water is over
+    262             1                          1           delay(numberOfCounts_50seconds);
+    263                                                    // Now first washing is over
+    264             1                          1           delay(numberOfCounts_50seconds);
+    265                                                    // Now first rinsing is over
+    266                                                    if(DUT.current_state == WASH)
+    267                                                      begin
+    268             1                          1               delay(numberOfCounts_50seconds);
+    269                                                        // Now second washing is over
+    270                                                        if(DUT.current_state == RINSE)
+    271                                                          begin
+    272             1                          1                   delay(numberOfCounts_50seconds);
+    273                                                            // Now second rinsing is over
+    274                                                            if(DUT.current_state == SPIN)
+    275                                                              begin
+    276             1                          1                       $display("Test case 9 passed");
+    277                                                              end
+    278                                                            else
+    279                                                              begin
+    280             1                    ***0***                       $display("Test case 9 failed");
+    281                                                              end
+    282                                                          end
+    283                                                        else
+    284                                                          begin
+    285             1                    ***0***                   $display("Test case 9 failed");
+    286                                                          end
+    287                                                      end
+    288                                                    else  
+    289                                                      begin
+    290             1                    ***0***               $display("Test case 9 failed");
+    291                                                      end
+    292                                                  end
+    293                                                endtask
+    294                                                
+    295                                                task test_case_10;
+    296                                                  begin
+    297             1                          1           $display("Test case 10 running");
+    298             1                          1           double_wash_tb = 'd0;
+    299             1                          1           time_pause_tb = 1'b1;
+    300             1                          1           delay(numberOfCounts_10seconds);
+    301                                                    if(DUT.current_state == SPIN)
+    302                                                      begin
+    303             1                          1               time_pause_tb = 1'b0;
+    304             1                          1               delay(numberOfCounts_20seconds);
+    305                                                        if(DUT.current_state == DRY)
+    306                                                          begin
+    307             1                          1                   $display("Test case 10 passed");
+    308                                                          end
+    309                                                        else
+    310                                                          begin
+    311             1                    ***0***                   $display("Test case 10 failed");
+    312                                                          end
+    313                                                      end
+    314                                                    else
+    315                                                      begin
+    316             1                    ***0***               $display("Test case 10 failed");
+    317                                                      end
+    318                                                  end
+    319                                                endtask
+    320                                                
+    321                                                  task test_case_11;
+    322                                                  begin
+    323             1                          1           $display("Test case 11 running");
+    324             1                          1           reset();
+    325             1                          1           rst_n_tb = 1'b1;
+    326             1                          1           start_tb = 1'b1;
+    327             1                          1           dry_wash_tb = 1'b1;
+    328             1                          1           #(period);
+    329             1                          1           dry_wash_tb = 1'b0;
+    330             1                          1           delay(numberofCounts_1minute);
+    331                                                    if( DUT.current_state == IDLE)
+    332             1                          1             $display("Test case 11 passed");
+    333                                                    else
+    334             1                    ***0***             $display("Test case 11 failed");
+    335                                                  end
+    336                                                endtask
+    337                                              
+    338                                                task test_case_12;
+    339                                                begin
+    340             1                          1         $display("Test case 12 running");
+    341             1                          1         reset();
+    342             1                          1         start_tb = 1'b1;
+    343             1                          1         #(period);
+    344             1                          1         delay(numberOfCounts_10seconds / 2.0); // Let the counter reach halfway
+    345             1                          1         time_pause_tb = 1'b1;
+    346             1                          1         #(period * 3);                // Pause for a while
+    347             1                          1         time_pause_tb = 1'b0;      
+    348             1                          1         delay(numberOfCounts_10seconds / 2.0); // Resume and complete counting;
+    349             1                          1         $display("Counter after resume: %d", DUT.counter);
+    350             1                          1         $display("Current State: %d", DUT.current_state);
+    351             1                          1         $display("Timeout flag: %d", DUT.timeout); 
+    352                                                  if (DUT.current_state == WASH) begin
+    353             1                          1           $display("Test case 12 passed");
+    354                                                  end else begin
+    355             1                    ***0***           $display("Test case 12 failed");
+    356                                                  end
+    357                                                end
+    358                                              endtask
+    359                                              
+    360                                              
+    361                                              task test_case_13;
+    362                                                reg [31:0] random_counter;
+    363                                                begin
+    364             1                          1         $display("Test case 13 running");
+    365                                                  // Initialize inputs
+    366             1                          1         rst_n_tb = 1'b1;
+    367             1                          1         start_tb = 1'b0;
+    368             1                          1         dry_wash_tb = 1'b0;
+    369             1                          1         #10 rst_n_tb = 1'b0; // Ensure FSM starts in IDLE
+    369             2                          1     
+    370             1                          1         #10 rst_n_tb = 1'b1;
+    370             2                          1     
+    371                                              
+    372                                                  // Randomized signal generation loop
+    373             1                         30         repeat(30) begin
+    374                                                    // Randomize control signals
+    375             1                         30           random_counter = $random;
+    376             1                         30           start_tb = random_counter[0];
+    377             1                         30           dry_wash_tb = random_counter[1];
+    378                                              
+    379                                                    // Apply inputs for a random duration
+    380             1                         30           #(random_counter % 20);
+    381                                              
+    382                                                    // Randomly assert reset
+    383                                                    if ($random % 3 == 0) begin
+    384             1                          6             $display("Resetting FSM at time %0t", $time);
+    385             1                          6             rst_n_tb = 1'b0;
+    386             1                          6             #10 rst_n_tb = 1'b1; // De-assert reset
+    386             2                          6     
+    387                                                    end
+    388                                              
+    389                                                    // Monitor FSM state to ensure it transitions to IDLE on reset
+    390                                                    if (!rst_n_tb) begin
+    391                                                      if (DUT.current_state != IDLE) begin
+    392             1                    ***0***               $error("FSM did not return to IDLE state as expected at time %0t", $time);
+    393                                                      end
+    394                                                    end
+    395                                                  end
+    396             1                          1         $display("Test case 13 passed");
+    397                                                end
+    398                                              endtask
+    399                                              
+    400                                                task delay(input [31:0] numberOfCounts);
+    401                                                  begin  
+    402             1                         15            #(numberOfCounts * period);
+    403                                                  end
+    404                                                endtask
+    405                                                
+    406                                              ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    407                                              /////////////////////////////////////////// Clock Generator ////////////////////////////////////////////////
+    408                                              ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    409                                                
+    410                                                always
+    411             1                       1029         #(period / 2.0) clk_tb = ~clk_tb;
+    411             2                       1028     
+    412                                              
+    413                                              ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    414                                              ////////////////////////////////////////// DUT Instantation ////////////////////////////////////////////////
+    415                                              ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    416                                                    
+    417                                                Washing_Machine DUT(
+    418                                                .rst_n(rst_n_tb),
+    419                                                .clk(clk_tb),
+    420                                                .start(start_tb),
+    421                                                .double_wash(double_wash_tb),
+    422                                                .dry_wash(dry_wash_tb),
+    423                                                .time_pause(time_pause_tb),
+    424                                                .done(done_tb)
+    425                                                );
+    426                                                
+    427                                              endmodule
+
+Branch Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Branches                        38        19        19      50.0
+
+================================Branch Details================================
+
+Branch Coverage for file Washing_Machine_tb.v --
+
+------------------------------------IF Branch------------------------------------
+    131                                        1     Count coming in to IF
+    131             1                          1           if( DUT.current_state == IDLE )
+    135             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    149                                        1     Count coming in to IF
+    149             1                          1           if( DUT.current_state == FILL_WATER )
+    151             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    160                                        1     Count coming in to IF
+    160             1                          1           if( DUT.current_state == WASH)
+    164             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    175                                        1     Count coming in to IF
+    175             1                          1           if( DUT.current_state == RINSE)
+    179             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    190                                        1     Count coming in to IF
+    190             1                          1           if( DUT.current_state == SPIN)
+    194             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    205                                        1     Count coming in to IF
+    205             1                          1           if( DUT.current_state == DRY)
+    209             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    220                                        1     Count coming in to IF
+    220             1                          1           if( DUT.current_state == IDLE)
+    224             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    236                                        1     Count coming in to IF
+    236             1                          1           if(done_tb == 1'b1)
+    249             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    240                                        1     Count coming in to IF
+    240             1                          1               if(done_tb == 1'b0)
+    244             1                    ***0***               else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    266                                        1     Count coming in to IF
+    266             1                          1           if(DUT.current_state == WASH)
+    288             1                    ***0***           else  
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    270                                        1     Count coming in to IF
+    270             1                          1               if(DUT.current_state == RINSE)
+    283             1                    ***0***               else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    274                                        1     Count coming in to IF
+    274             1                          1                   if(DUT.current_state == SPIN)
+    278             1                    ***0***                   else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    301                                        1     Count coming in to IF
+    301             1                          1           if(DUT.current_state == SPIN)
+    314             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    305                                        1     Count coming in to IF
+    305             1                          1               if(DUT.current_state == DRY)
+    309             1                    ***0***               else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    331                                        1     Count coming in to IF
+    331             1                          1           if( DUT.current_state == IDLE)
+    333             1                    ***0***           else
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    352                                        1     Count coming in to IF
+    352             1                          1         if (DUT.current_state == WASH) begin
+    354             1                    ***0***         end else begin
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    383                                       30     Count coming in to IF
+    383             1                          6           if ($random % 3 == 0) begin
+                                              24     All False Count
+Branch totals: 2 hits of 2 branches = 100.0%
+
+------------------------------------IF Branch------------------------------------
+    390                                       30     Count coming in to IF
+    390             1                    ***0***           if (!rst_n_tb) begin
+                                              30     All False Count
+Branch totals: 1 hit of 2 branches = 50.0%
+
+------------------------------------IF Branch------------------------------------
+    391                                  ***0***     Count coming in to IF
+    391             1                    ***0***             if (DUT.current_state != IDLE) begin
+                                         ***0***     All False Count
+Branch totals: 0 hits of 2 branches = 0.0%
+
+
+Condition Coverage:
+    Enabled Coverage            Active   Covered    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    FEC Condition Terms              0         0         0     100.0
+Expression Coverage:
+    Enabled Coverage            Active   Covered    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    FEC Expression Terms             0         0         0     100.0
+FSM Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    FSMs                                                       100.0
+        States                       0         0         0     100.0
+        Transitions                  0         0         0     100.0
+Toggle Coverage:
+    Enabled Coverage            Active      Hits    Misses % Covered
+    ----------------            ------      ----    ------ ---------
+    Toggle Bins                     14        14         0     100.0
+
+================================Toggle Details================================
+
+Toggle Coverage for File Washing_Machine_tb.v --
+
+       Line                                   Node      1H->0L      0L->1H  "Coverage"
+--------------------------------------------------------------------------------------
+          9                               rst_n_tb           1           1      100.00 
+         10                                 clk_tb           1           1      100.00 
+         11                               start_tb           1           1      100.00 
+         12                         double_wash_tb           1           1      100.00 
+         13                            dry_wash_tb           1           1      100.00 
+         14                          time_pause_tb           1           1      100.00 
+         15                                done_tb           1           1      100.00 
+
+Total Node Count     =          7 
+Toggled Node Count   =          7 
+Untoggled Node Count =          0 
+
+Toggle Coverage      =      100.0% (14 of 14 bins)
+
+
+ASSERTION RESULTS:
+-------------------------------------------------------
+Name                 File(Line)           Failure Pass 
+                                          Count   Count 
+-------------------------------------------------------
+/Washing_Machine_tb/DUT/assert__Steam_Clean_Behavior
+                     Washing_Machine.v(420)       0     1
+/Washing_Machine_tb/DUT/assert__Time_Pause_Functionality
+                     Washing_Machine.v(416)       0     1
+/Washing_Machine_tb/DUT/assert__Timeout_Correctness
+                     Washing_Machine.v(412)       0     1
+/Washing_Machine_tb/DUT/assert__Double_Wash_Transition
+                     Washing_Machine.v(408)       0     1
+/Washing_Machine_tb/DUT/assert__IDLE_To_FILL_WATER
+                     Washing_Machine.v(404)       0     1
+/Washing_Machine_tb/DUT/assert__Done_Only_In_IDLE
+                     Washing_Machine.v(400)       0     1
+/Washing_Machine_tb/DUT/assert__Reset_To_IDLE
+                     Washing_Machine.v(395)       0     1
+
+Total Coverage By File (code coverage only, filtered view): 90.7%
+
+End time: 03:08:43 on Nov 20,2024, Elapsed time: 0:00:00
+Errors: 0, Warnings: 0
