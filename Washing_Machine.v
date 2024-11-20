@@ -413,10 +413,10 @@ psl assert Reset_To_IDLE;
 
 // Ensure 'time_pause' freezes the counter
 // psl property Time_Pause_Functionality = always (time_pause -> (counter == $past(counter)));
-// assert Time_Pause_Functionality;
+// psl assert Time_Pause_Functionality;
 
 // Ensure proper behavior for STEAM_CLEAN
-// property Steam_Clean_Behavior = always ((current_state == STEAM_CLEAN && timeout) -> next(current_state == IDLE));
-// assert Steam_Clean_Behavior;
+// psl property Steam_Clean_Behavior = always ((current_state == STEAM_CLEAN && timeout) -> next(current_state == IDLE));
+// psl assert Steam_Clean_Behavior;
 
 endmodule
