@@ -1,6 +1,4 @@
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////// Module ports list, declaration, and data type ///////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 module Washing_Machine(
   input wire rst_n,
@@ -9,12 +7,13 @@ module Washing_Machine(
   input wire double_wash,
   input wire dry_wash,
   input wire time_pause,  // time_pause input added
-  output reg done
+  input wire door_closed, 
+  output reg done,
+  output reg error_signal // signal to show if error occurs due to door being open
 );
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 ///////////////////////////////////////////////// Parameters /////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Define states
 localparam IDLE        = 3'b000,
@@ -23,7 +22,8 @@ localparam IDLE        = 3'b000,
            RINSE       = 3'b011,
            SPIN        = 3'b100,
            DRY         = 3'b101,
-           STEAM_CLEAN = 3'b110;
+           STEAM_CLEAN = 3'b110,
+           ERROR       = 3'b111;
 
 // Define the number of counts required by the counter to reach specific time
 localparam numberOfCounts_10seconds  = 6'd9,   // Fill water
@@ -31,18 +31,14 @@ localparam numberOfCounts_10seconds  = 6'd9,   // Fill water
            numberOfCounts_50seconds  = 6'd49,  // Wash and rinse
            numberofCounts_1minute    = 6'd59;  // Dry, steam clean
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////// Variables and Internal Connections //////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-reg [2:0] current_state, next_state;
-reg [5:0] counter, counter_comb;
+reg [2:0] current_state, next_state, prev_state;
+reg [5:0] counter, counter_comb, backup_counter;
 reg timeout;
 reg [1:0] number_of_washes;
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////// Sequential Procedural Blocks /////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////// Sequential Procedural Blocks ////////////////////////////////////////
 
 // Logic to support the "double wash" option
 always @(posedge clk) begin
@@ -57,31 +53,51 @@ end
 always @(posedge clk or negedge rst_n) begin
   if (!rst_n) begin
     current_state <= IDLE; // Reset to IDLE state asynchronously
+    prev_state <= IDLE; // Initialize prev_state to IDLE
   end else begin
-    current_state <= next_state; // Transition to the next state
+    current_state <= next_state; // Update the state normally
+    // Save state only when entering ERROR state
+    if (current_state != ERROR && next_state == ERROR) begin
+      prev_state <= current_state;
+    end
   end
 end
 
-// 6-bit counter sequential logic
+// Counter sequential logic
 always @(posedge clk or negedge rst_n) begin
   if (!rst_n) begin
     counter <= 'd0; // Reset the counter asynchronously
+    backup_counter <= 'd0; // Initialize backup_counter
   end else begin
-    counter <= counter_comb; // Update counter based on combinational logic
+    // Normal counter update logic
+    if (current_state != ERROR) begin
+      counter <= counter_comb;
+    end
+
+    // Save counter when entering ERROR state
+    if (current_state != ERROR && next_state == ERROR) begin
+      backup_counter <= counter;
+    end
+
+    // Restore counter when exiting ERROR state
+    if (current_state == ERROR && next_state != ERROR) begin
+      counter <= backup_counter;
+    end
   end
 end
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////// Combinational Procedural Blocks /////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 // Next state combinational logic
 always @(*) begin
   next_state = IDLE; // Default value to avoid unintentional latches
-
   case (current_state)
     IDLE: begin
-      if (dry_wash && start) begin
+      if(!door_closed) begin
+        next_state = ERROR;
+        error_signal = 'b1;  
+      end else if (dry_wash && start) begin
         next_state = STEAM_CLEAN; // Transition to STEAM_CLEAN
       end else if (start) begin
         next_state = FILL_WATER; // Transition to FILL_WATER
@@ -91,15 +107,32 @@ always @(*) begin
     end
 
     FILL_WATER: begin
-      next_state = timeout ? WASH : current_state; // Transition to WASH on timeout
+      if (!door_closed) begin
+        next_state = ERROR; // Transition to ERROR if door not closed
+        error_signal = 'b1;
+      end else if (timeout) begin
+        next_state = WASH; // Transition to WASH
+      end else begin
+        next_state = current_state; // Remain in IDLE
+      end
     end
 
     WASH: begin
-      next_state = timeout ? RINSE : current_state; // Transition to RINSE on timeout
+      if (!door_closed) begin
+        next_state = ERROR; // Transition to ERROR if door not closed
+        error_signal = 'b1;
+      end else if (timeout) begin
+        next_state = RINSE; // Transition to WASH
+      end else begin
+        next_state = current_state; // Remain in IDLE
+      end
     end
 
     RINSE: begin
-      if (timeout) begin
+      if (!door_closed) begin
+        next_state = ERROR; // Transition to ERROR if door not closed
+        error_signal = 'b1;
+      end else if (timeout) begin
         if (double_wash && (number_of_washes == 'd1)) begin
           next_state = WASH; // Transition to WASH for second wash
         end else begin
@@ -111,17 +144,45 @@ always @(*) begin
     end
 
     SPIN: begin
-      next_state = timeout ? DRY : current_state; // Transition to DRY on timeout
+      if (!door_closed) begin
+        next_state = ERROR; // Transition to ERROR if door not closed
+        error_signal = 'b1;
+      end else if (timeout) begin
+        next_state = DRY; // Transition to DRY
+      end else begin
+        next_state = current_state; // Remain in IDLE
+      end
     end
 
     DRY: begin
-      next_state = timeout ? IDLE : current_state; // Transition to IDLE on timeout
+      if (!door_closed) begin
+        next_state = ERROR; // Transition to ERROR if door not closed
+        error_signal = 'b1;
+      end else if (timeout) begin
+        next_state =IDLE; // Transition back to IDLE after complete cycle
+      end else begin
+        next_state = current_state; // Remain in IDLE
+      end
     end
-
     STEAM_CLEAN: begin
-      next_state = timeout ? IDLE : current_state; // Transition to IDLE on timeout
+      if (!door_closed) begin
+        next_state = ERROR; // Transition to ERROR if door not closed
+        error_signal = 'b1;
+      end else if (timeout) begin
+        next_state =IDLE; // Transition back to IDLE after steam clean
+      end else begin
+        next_state = current_state; // Remain in IDLE
+      end
     end
 
+    ERROR: begin  
+      if (door_closed) begin  
+        next_state = prev_state;
+        error_signal = 'b0;
+      end else begin 
+        next_state = current_state; // Remain in ERROR
+        end  
+      end
     default: begin
       next_state = IDLE; // Default case
     end
