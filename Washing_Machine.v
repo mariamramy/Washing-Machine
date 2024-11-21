@@ -237,10 +237,11 @@ psl property Reset_To_IDLE = always (rst_n == 0 -> next(current_state == IDLE));
 psl assert Reset_To_IDLE;
 */
 
-// PSL assertions
-// Ensure 'done' is high only in the IDLE state
+
+// Ensure "done" is high only in the IDLE state
 // psl property Done_Only_In_IDLE = always ((current_state == IDLE) -> (done == 1));
 // psl assert Done_Only_In_IDLE;
+
 
 // Ensure proper transition from IDLE to FILL_WATER when 'start' is asserted
 // psl property IDLE_To_FILL_WATER = always ((current_state == IDLE && start && !dry_wash) -> eventually!(current_state == FILL_WATER));
