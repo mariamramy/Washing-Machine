@@ -88,17 +88,23 @@ module Washing_Machine_tb();
           // Test case 11: Check the workability of the dry wash option and that it transitions to the STEAM_CLEAN
           //phase once dry_wash is set to high.
           test_case_11();
-
+          
+          // Test the time_pause option again and make sure it stays in the same state and also freeze the counter until time_pause is desserted.
           test_case_12();
 
+          // Randomized test case used to reset the FSM during random times and random states to make sure it returns to IDLE state after rst is desserted.
           test_case_13();
 
+          // This test case ensures the FSM transitions to the ERROR state correctly when a condition requiring it is met (e.g., door_closed is low).
           test_case_14();
 
+          // This test case verifies that the FSM saves the current state and counter value when entering the ERROR state.
           test_case_15();
 
+          // This test case ensures the FSM resumes from the saved state and counter value upon exiting the ERROR state.
           test_case_16();
 
+          // This test verifies the dry wash sequence when interrupted by time_pause and transitioning to ERROR.
           test_case_17();
           
       $finish;
