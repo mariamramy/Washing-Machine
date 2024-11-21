@@ -12,7 +12,9 @@ module Washing_Machine_tb();
   reg double_wash_tb;
   reg dry_wash_tb;
   reg time_pause_tb;
+  reg door_closed_tb;
   wire done_tb;
+  wire error_signal_tb;
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////// Parameters /////////////////////////////////////////////
@@ -24,7 +26,8 @@ module Washing_Machine_tb();
              RINSE       = 3'b011,
              SPIN        = 3'b100,
              DRY         = 3'b101,
-             STEAM_CLEAN = 3'b110;
+             STEAM_CLEAN = 3'b110,
+             ERROR       = 3'b111;
             
   localparam numberOfCounts_10seconds  = 6'd10, //fill water
              numberOfCounts_20seconds = 6'd20, //spin
@@ -89,6 +92,14 @@ module Washing_Machine_tb();
           test_case_12();
 
           test_case_13();
+
+          test_case_14();
+
+          test_case_15();
+
+          test_case_16();
+
+          test_case_17();
           
       $finish;
     end
@@ -104,6 +115,7 @@ module Washing_Machine_tb();
       double_wash_tb = 1'b0;
       dry_wash_tb = 1'b0;
       time_pause_tb = 1'b0;
+      door_closed_tb = 1'b1; //initially closed
     end
   endtask
   
@@ -392,6 +404,100 @@ endtask
     end
   endtask
 
+  task test_case_14;
+  begin
+    $display("Test case 14 running");
+    reset();
+    start_tb = 1'b1;
+    door_closed_tb = 1'b1; // Initially, the door is closed
+    #(period);
+    door_closed_tb = 1'b0; // Simulate door open
+    #(period * 2); // Allow time for transition to ERROR
+    if (DUT.current_state == ERROR) begin
+      $display("Test case 14 passed");
+    end else begin
+      $display("Test case 14 failed");
+    end
+  end
+  endtask
+
+  task test_case_15;
+  reg [31:0] saved_counter;
+  reg [2:0] saved_state;
+  begin
+    $display("Test case 15 running");
+    reset();
+    start_tb = 1'b1;
+    door_closed_tb = 1'b1;
+    #(period);
+    delay(numberOfCounts_10seconds / 2); // Progress partway through FILL_WATER
+    saved_state = DUT.current_state;
+    saved_counter = DUT.counter;
+    door_closed_tb = 1'b0; // Trigger ERROR
+    #(period);
+    if (DUT.current_state == ERROR && DUT.prev_state == saved_state && DUT.backup_counter == saved_counter) begin
+      $display("Test case 15 passed");
+    end else begin
+      $display("Test case 15 failed");
+    end
+  end
+  endtask
+
+  task test_case_16;
+  reg [31:0] saved_counter;
+  reg [2:0] saved_state;
+  begin
+    $display("Test case 16 running");
+    reset();
+    start_tb = 1'b1;
+    door_closed_tb = 1'b1;
+    #(period);
+    delay(numberOfCounts_10seconds / 2); // Progress partway through FILL_WATER
+    saved_state = DUT.current_state;
+    saved_counter = DUT.counter;
+    door_closed_tb = 1'b0; // Trigger ERROR
+    #(period);
+    door_closed_tb = 1'b1; // Resolve ERROR
+    #(period);
+    if (DUT.current_state == saved_state && DUT.counter == saved_counter) begin
+      $display("Test case 16 passed");
+    end else begin
+      $display("Test case 16 failed");
+    end
+  end
+  endtask
+
+  task test_case_17;
+  reg [31:0] saved_counter;
+  reg [2:0] saved_state;
+  begin
+    $display("Test case 17 running");
+    reset();
+    dry_wash_tb = 1'b1;
+    start_tb = 1'b1;
+    #(period);
+    delay(numberofCounts_1minute / 2); // Progress halfway through STEAM_CLEAN
+    saved_state = DUT.current_state;
+    saved_counter = DUT.counter;
+    time_pause_tb = 1'b1; // Pause the FSM
+    #(period * 3); // Pause duration
+    time_pause_tb = 1'b0; // Resume
+    door_closed_tb = 1'b0; // Trigger ERROR during STEAM_CLEAN
+    #(period);
+    if (DUT.current_state == ERROR) begin
+      door_closed_tb = 1'b1; // Resolve ERROR
+      #(period);
+      if (DUT.current_state == saved_state && DUT.counter == saved_counter) begin
+        $display("Test case 17 passed");
+      end else begin
+        $display("Test case 17 failed");
+      end
+    end else begin
+      $display("Test case 17 failed");
+    end
+  end
+endtask
+
   task delay(input [31:0] numberOfCounts);
     begin  
        #(numberOfCounts * period);
@@ -416,7 +522,9 @@ endtask
   .double_wash(double_wash_tb),
   .dry_wash(dry_wash_tb),
   .time_pause(time_pause_tb),
-  .done(done_tb)
+  .door_closed(door_closed_tb),
+  .done(done_tb),
+  .error_signal(error_signal_tb)
   );
   
 endmodule
