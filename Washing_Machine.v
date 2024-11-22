@@ -92,6 +92,7 @@ end
 // Next state combinational logic
 always @(*) begin
   next_state = IDLE; // Default value to avoid unintentional latches
+  error_signal = 1'b0;
   case (current_state)
     IDLE: begin
       if(!door_closed) begin
@@ -291,37 +292,51 @@ always @(*) begin
   endcase
 end
 
-/*
-Ensure the washing machine starts in IDLE when reset is asserted
-psl default clock = rose(clk);
-psl property Reset_To_IDLE = always (rst_n == 0 -> next(current_state == IDLE));
-psl assert Reset_To_IDLE;
-*/
+//psl default clock = rose(clk);
+//psl property Reset_To_IDLE = always (rst_n == 0 -> next(current_state == IDLE));
+//psl assert Reset_To_IDLE;
 
+//psl property Done_Only_In_IDLE = always ((current_state == IDLE) -> (done == 1));
+//psl assert Done_Only_In_IDLE;
 
-// Ensure "done" is high only in the IDLE state
-// psl property Done_Only_In_IDLE = always ((current_state == IDLE) -> (done == 1));
-// psl assert Done_Only_In_IDLE;
+//psl property IDLE_To_FILL_WATER = always ((current_state == IDLE && start && !dry_wash) -> eventually!(current_state == FILL_WATER));
+//psl assert IDLE_To_FILL_WATER;
 
+//psl property IDLE_To_STEAM_CLEAN = always ((current_state == IDLE && start && dry_wash) -> eventually!(current_state == STEAM_CLEAN));
+//psl assert IDLE_To_STEAM_CLEAN;
 
-// Ensure proper transition from IDLE to FILL_WATER when 'start' is asserted
-// psl property IDLE_To_FILL_WATER = always ((current_state == IDLE && start && !dry_wash) -> eventually!(current_state == FILL_WATER));
-// psl assert IDLE_To_FILL_WATER;
+//psl property Double_Wash_Transition = always ((current_state == RINSE && double_wash && number_of_washes == 1) -> eventually!(current_state == WASH));
+//psl assert Double_Wash_Transition;
 
-// Ensure correct double wash behavior
-// psl property Double_Wash_Transition = always ((current_state == RINSE && double_wash && number_of_washes == 1) -> eventually!(current_state == WASH));
-// psl assert Double_Wash_Transition;
+// Timeout for FILL_WATER
+//psl property Timeout_Fill_Water = always ((current_state == FILL_WATER && counter == numberOfCounts_10seconds) -> timeout);
+//psl assert Timeout_Fill_Water;
 
-// Ensure timeout flag is set at correct counter values
-// psl property Timeout_Correctness = always ((current_state == FILL_WATER && counter == numberOfCounts_10seconds) -> timeout);
-// psl assert Timeout_Correctness;
+// Timeout for WASH and RINSE
+//psl property Timeout_Wash_Rinse = always (((current_state == WASH || current_state == RINSE) && counter == numberOfCounts_50seconds) -> timeout);
+//psl assert Timeout_Wash_Rinse;
 
-// Ensure 'time_pause' freezes the counter
-// psl property Time_Pause_Functionality = always (time_pause -> (counter == prev(counter_comb)));
-// psl assert Time_Pause_Functionality;
+// Timeout for SPIN
+//psl property Timeout_Spin = always ((current_state == SPIN && counter == numberOfCounts_20seconds) -> timeout);
+//psl assert Timeout_Spin;
 
-// Ensure proper behavior for STEAM_CLEAN
-// psl property Steam_Clean_Behavior = always ((current_state == STEAM_CLEAN && timeout) -> next(current_state == IDLE));
-// psl assert Steam_Clean_Behavior;
+// Timeout for DRY and STEAM_CLEAN
+//psl property Timeout_Dry_Steam = always (((current_state == DRY || current_state == STEAM_CLEAN) && counter == numberofCounts_1minute) -> timeout);
+//psl assert Timeout_Dry_Steam;
+
+//psl property Time_Pause_Functionality = always (time_pause -> (counter == prev(counter_comb)));
+//psl assert Time_Pause_Functionality;
+
+// Ensure state restoration from ERROR
+//psl property Error_State_Restore = always ((current_state == ERROR && door_closed) -> next(current_state == prev_state));
+//psl assert Error_State_Restore;
+
+// Ensure counter restoration from ERROR
+//psl property Error_Counter_Restore = always ((current_state == ERROR && door_closed) -> next(counter == backup_counter));
+//psl assert Error_Counter_Restore;
+
+//psl property Steam_Clean_Behavior = always ((current_state == STEAM_CLEAN && timeout) -> next(current_state == IDLE));
+//psl assert Steam_Clean_Behavior;
+
 
 endmodule
