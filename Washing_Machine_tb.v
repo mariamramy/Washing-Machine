@@ -106,6 +106,8 @@ module Washing_Machine_tb();
 
           // This test verifies the dry wash sequence when interrupted by time_pause and transitioning to ERROR.
           test_case_17();
+
+          test_case_18();
           
       $finish;
     end
@@ -503,6 +505,59 @@ endtask
     end
   end
 endtask
+
+task test_case_18;
+  reg [31:0] saved_counter;
+  reg [2:0] saved_state;
+  reg [2:0] random_state;
+  integer i;
+  begin
+    $display("Test case 18 running");
+    
+    for (i = 0; i < 20; i = i + 1) begin
+
+      $display("Running iteration %d", i + 1);
+      reset();
+      dry_wash_tb = 1'b0;
+      start_tb = 1'b1;
+      #(period);
+      
+      // Randomly choose a state to transition to
+      random_state = $random % 7; // Choose between 0 and 6 (excluding ERROR state)
+      
+      // Run for a while to reach a random state
+      repeat (random_state) begin
+        #(period);
+      end
+      
+      // Save the state and counter
+      saved_state = DUT.current_state;
+      saved_counter = DUT.counter;
+      
+      // Trigger the ERROR state by setting door_closed_tb = 0 randomly
+      door_closed_tb = 1'b0; // Simulate door being open
+      #(period);
+      
+      // Check if the machine transitioned to ERROR state
+      if (DUT.current_state == ERROR) begin
+        $display("Transition to ERROR state successful at random state %d", random_state);
+        door_closed_tb = 1'b1; // Resolve ERROR by closing door
+        #(period);
+        
+        // Check if the state and counter are restored correctly
+        if (DUT.current_state == saved_state && DUT.counter == saved_counter) begin
+          $display("Test case 18 passed");
+        end else begin
+          $display("Randomized error test failed");
+        end
+      end else begin
+        $display("Randomized error test failed - did not enter ERROR state");
+      end
+    end
+  end
+endtask
+
+
 
   task delay(input [31:0] numberOfCounts);
     begin  
